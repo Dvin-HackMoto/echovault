@@ -9,6 +9,7 @@ strategies at the top and one section per area below.
 from __future__ import annotations
 
 import contextlib
+import copy
 import json
 from datetime import datetime, timedelta
 
@@ -1003,3 +1004,412 @@ def test_property_9_fallback_only_uses_usable_record_facts(data, language, careg
     assert found <= usable_markers, f"markers not from usable records: {found - usable_markers}"
     for marker in dropped_only:
         assert marker not in answer, f"dropped record marker {marker} leaked: {answer!r}"
+
+
+# --- Property 10 --------------------------------------------------------------
+
+_blank_text = st.sampled_from([None, "", " ", "   ", "\t", "\n", " \t\n "])
+
+
+@st.composite
+def _usable_empty_record(draw):
+    """A usable record whose rendering is empty (all rendered fields blank)."""
+    if draw(st.booleans()):
+        # Memory-shaped: blank content/title (person fields are ignored).
+        record = draw(
+            st.fixed_dictionaries(
+                {"trust": st.just("verified")},
+                optional={"content": _blank_text, "title": _blank_text},
+            )
+        )
+        if "content" not in record and "title" not in record:
+            record["content"] = draw(_blank_text)
+    else:
+        # Person-shaped: no name/nickname and no notes; a relationship alone
+        # cannot be rendered without a subject, so it is allowed here.
+        record = draw(
+            st.fixed_dictionaries(
+                {"trust": st.just("verified")},
+                optional={
+                    "name": _blank_text,
+                    "nickname": _blank_text,
+                    "notes": _blank_text,
+                    "relationship": _rich_fact_text,
+                },
+            )
+        )
+        if "name" not in record and "relationship" not in record:
+            record["name"] = draw(_blank_text)
+    record.update(
+        draw(
+            st.fixed_dictionaries(
+                {},
+                optional={
+                    "validity": st.sampled_from(["current", "outdated", ""]),
+                    "conflicts_with": st.sampled_from([None, "", 0, []]),
+                },
+            )
+        )
+    )
+    return record
+
+
+@st.composite
+def no_data_records_with_now(draw):
+    """Draw (values, now) where no usable record renders any text.
+
+    Arbitrary items are drawn; any item that would be usable and render text
+    is made unusable by changing its trust. Usable-but-empty records are mixed
+    in so both halves of the precondition are exercised.
+    """
+    now = draw(reference_times)
+    item = st.one_of(
+        fallback_record_dicts(now),
+        fallback_record_dicts(now),
+        _non_dict_values,
+        _usable_empty_record(),
+    )
+    values = []
+    for value in draw(st.lists(item, max_size=10)):
+        if usability_oracle(value, now) and _oracle_sentence(value, "en"):
+            value = {**value, "trust": draw(st.sampled_from(["unverified", "Verified", None]))}
+        values.append(value)
+    return values, now
+
+
+# Feature: ai-services, Property 10: No usable records gives the no-data reply
+@settings(max_examples=200, deadline=None)
+@given(
+    data=no_data_records_with_now(),
+    language=language_values,
+    caregiver=caregiver_values,
+)
+def test_property_10_no_usable_records_gives_no_data_reply(data, language, caregiver):
+    """**Validates: Requirements 9.1**"""
+    values, now = data
+    # Precondition: every usable record renders to empty text in both languages.
+    for value in values:
+        if usability_oracle(value, now):
+            assert _oracle_sentence(value, "en") == ""
+            assert _oracle_sentence(value, "fil") == ""
+
+    answer = fallback.build_fallback_answer(values, language, caregiver, now=now)
+    assert answer == fallback.no_data_reply(language, caregiver)
+
+
+# --- Property 11 --------------------------------------------------------------
+#
+# "Other than fil" is interpreted as "does not normalize to fil":
+# fallback_language matches after strip() and lower(), so "FIL", " fil " and
+# "\tFil\n" select the Filipino templates and are filtered out here.
+
+
+def _normalizes_to_fil(value) -> bool:
+    return isinstance(value, str) and value.strip().lower() == "fil"
+
+
+non_fil_language_values = st.one_of(
+    language_values,
+    st.sampled_from(["en", "fil-en", "FIL-EN", " fil-en ", "fil en", "fi", "fill", "filipino"]),
+    st.text(),
+    st.none(),
+    st.integers(),
+    st.floats(allow_nan=True),
+    st.booleans(),
+    st.lists(st.just("fil"), max_size=2),
+    st.binary(max_size=8),
+).filter(lambda v: not _normalizes_to_fil(v))
+
+# Record lists that render sentences, and lists that fall through to the
+# no-data reply, so both template paths are compared.
+_any_fallback_records_with_now = st.one_of(
+    fallback_records_with_now(), no_data_records_with_now()
+)
+
+
+# Feature: ai-services, Property 11: Non-Filipino languages use the English templates
+@settings(max_examples=200, deadline=None)
+@given(
+    data=_any_fallback_records_with_now,
+    language=non_fil_language_values,
+    caregiver=caregiver_values,
+)
+def test_property_11_non_filipino_languages_use_english(data, language, caregiver):
+    """**Validates: Requirements 8.7, 8.9, 9.4**"""
+    values, now = data
+    assert fallback.fallback_language(language) == "en"
+    assert fallback.build_fallback_answer(
+        values, language, caregiver, now
+    ) == fallback.build_fallback_answer(values, "en", caregiver, now)
+    assert fallback.no_data_reply(language, caregiver) == fallback.no_data_reply(
+        "en", caregiver
+    )
+
+
+# --- Property 12 --------------------------------------------------------------
+#
+# "Non-blank" means non-empty after records.clean (whitespace runs, including
+# newlines and tabs, collapse to one space and the ends are stripped). The
+# other key may still hold any _caregiver_name_values value, including None,
+# blanks and integers (display_name renders non-strings via str()).
+
+_non_blank_name = st.one_of(
+    st.text(max_size=20),
+    st.sampled_from(["Ana", "  Ana  Santos ", "line1\nline2", "{name}", "\tLola\t"]),
+).filter(lambda s: _oracle_clean(s) != "")
+
+
+@st.composite
+def named_caregivers(draw):
+    """Caregiver dicts where nickname and/or name is a non-blank string."""
+    which = draw(st.sampled_from(["nickname", "name", "both"]))
+    caregiver = {}
+    for key in ("nickname", "name"):
+        if which in (key, "both"):
+            caregiver[key] = draw(_non_blank_name)
+        elif draw(st.booleans()):
+            caregiver[key] = draw(_caregiver_name_values)
+    if draw(st.booleans()):
+        caregiver["relationship"] = draw(_fact_text)
+    return caregiver
+
+
+# Feature: ai-services, Property 12: No-data reply names the caregiver
+@settings(max_examples=200, deadline=None)
+@given(language=st.sampled_from(["en", "fil"]), caregiver=named_caregivers())
+def test_property_12_no_data_reply_names_caregiver(language, caregiver):
+    """**Validates: Requirements 9.3, 9.5**"""
+    snapshot = dict(caregiver)
+    reply = fallback.no_data_reply(language, caregiver)
+    with_name, _ = fallback.NO_DATA[language]
+    fixed_sentence = with_name.split("{name}")[0]
+
+    # Independent oracle: cleaned nickname when non-blank, else cleaned name.
+    nickname = _oracle_clean(caregiver.get("nickname"))
+    expected_name = nickname or _oracle_clean(caregiver.get("name"))
+    assert expected_name
+
+    assert records.display_name(caregiver) == expected_name
+    assert reply.startswith(fixed_sentence)
+    assert expected_name in reply
+    assert reply == with_name.replace("{name}", expected_name)
+    assert caregiver == snapshot  # pure: input not modified
+
+
+# --- Property 5 ---------------------------------------------------------------
+#
+# Inputs are drawn from the existing record strategies (mixed dicts and junk).
+# Generated data contains no NaN floats (all float strategies used here set
+# allow_nan=False), so == is a sound deep-equality check; repr is compared too
+# so that type changes that still compare equal (e.g. 1 vs True) are caught.
+
+_builder_records_with_now = st.one_of(
+    records_with_now(),
+    marked_records_with_now().map(lambda d: (d[0], d[1])),
+    fallback_records_with_now(),
+)
+
+
+def _assert_unchanged(before, after, label):
+    assert after == before, f"{label} was mutated"
+    assert repr(after) == repr(before), f"{label} was mutated"
+
+
+# Feature: ai-services, Property 5: Builders do not mutate their inputs
+@settings(max_examples=200, deadline=None)
+@given(
+    data=_builder_records_with_now,
+    question=marker_free_text,
+    language=language_values,
+    caregiver=caregiver_values,
+)
+def test_property_5_builders_do_not_mutate_inputs(data, question, language, caregiver):
+    """**Validates: Requirements 6.7, 2.5**"""
+    values, now = data
+    snapshot = copy.deepcopy((values, question, language, caregiver, now))
+
+    def check_inputs():
+        _assert_unchanged(snapshot[0], values, "records")
+        _assert_unchanged(snapshot[1], question, "question")
+        _assert_unchanged(snapshot[2], language, "language")
+        _assert_unchanged(snapshot[3], caregiver, "caregiver")
+        _assert_unchanged(snapshot[4], now, "now")
+
+    calls = [
+        ("usable_records", lambda: records.usable_records(values, now)),
+        ("build_prompt", lambda: prompts.build_prompt(question, values, now)),
+        ("build_system_prompt", lambda: prompts.build_system_prompt(language, caregiver)),
+        (
+            "build_fallback_answer",
+            lambda: fallback.build_fallback_answer(values, language, caregiver, now),
+        ),
+        ("no_data_reply", lambda: fallback.no_data_reply(language, caregiver)),
+    ]
+    for name, call in calls:
+        first = call()
+        check_inputs()
+        second = call()
+        check_inputs()
+        assert first == second, f"{name} is not deterministic"
+        assert repr(first) == repr(second), f"{name} is not deterministic"
+        if name != "usable_records":
+            assert isinstance(first, str), f"{name} returned {type(first).__name__}"
+
+
+# --- Property 16 --------------------------------------------------------------
+#
+# stt.transcribe() is driven end to end through a fake Whisper model. The seams
+# (_create_model, _decode) are patched with unittest.mock.patch inside the test
+# body (function-scoped monkeypatch does not reset between Hypothesis examples)
+# and the cached model is reset per example. NumPy is not a dependency, so the
+# decoded audio is a stand-in exposing a non-zero ``.size`` (all transcribe()
+# reads); zero-length audio would return "" before language detection.
+#
+# Duplicate codes: stt keeps the highest probability seen per code, so the
+# oracle does the same. Probabilities are drawn from [0, 1] like a real
+# detector, which makes "missing" equivalent to probability 0.
+
+import os  # noqa: E402 - kept local to this section
+import tempfile  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from app.ai import stt  # noqa: E402
+
+
+class _P16Audio:
+    size = 16000
+
+
+class _P16Segment:
+    def __init__(self, text):
+        self.text = text
+
+
+class _P16WhisperModel:
+    def __init__(self, probs, detect_error=None):
+        self.probs = probs
+        self.detect_error = detect_error
+        self.transcribe_calls: list[dict] = []
+
+    def detect_language(self, audio=None, **kwargs):
+        if self.detect_error is not None:
+            raise self.detect_error
+        if self.probs:
+            top = max(self.probs, key=lambda p: p[1])
+            return top[0], top[1], self.probs
+        return None, 0.0, self.probs
+
+    def transcribe(self, audio, **kwargs):
+        self.transcribe_calls.append({"audio": audio, **kwargs})
+        return iter([_P16Segment("ok")]), None
+
+
+_p16_codes = st.sampled_from(["en", "tl", "es", "ja", "fr", "fil", "id", "ceb"])
+_p16_probs = st.lists(
+    st.tuples(_p16_codes, st.floats(min_value=0.0, max_value=1.0, allow_nan=False)),
+    max_size=8,
+)
+
+
+def _expected_language(pairs) -> str:
+    """Independent oracle: higher of en / tl (max per code); ties or absence -> en."""
+    en = [p for code, p in pairs if code == "en"]
+    tl = [p for code, p in pairs if code == "tl"]
+    if not en and not tl:
+        return "en"
+    en_best = max(en, default=0.0)
+    tl_best = max(tl, default=0.0)
+    return "tl" if tl_best > en_best else "en"
+
+
+@contextlib.contextmanager
+def _p16_audio_path():
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    try:
+        os.write(fd, b"not really audio")
+        os.close(fd)
+        yield path
+    finally:
+        os.remove(path)
+
+
+# Feature: ai-services, Property 16: Transcription language is always English or Filipino
+@settings(max_examples=200, deadline=None)
+@given(probs=_p16_probs, detect_fails=st.booleans())
+def test_property_16_transcription_language_is_en_or_tl(probs, detect_fails):
+    """**Validates: Requirements 11.3, 11.4**"""
+    model = _P16WhisperModel(
+        probs, detect_error=RuntimeError("no speech") if detect_fails else None
+    )
+    expected = "en" if detect_fails else _expected_language(probs)
+
+    stt._reset_for_tests()
+    try:
+        with _p16_audio_path() as path, mock.patch.object(
+            stt, "_create_model", lambda name: model
+        ), mock.patch.object(stt, "_decode", lambda p: _P16Audio()):
+            assert stt.transcribe(path) == "ok"
+    finally:
+        stt._reset_for_tests()
+
+    assert len(model.transcribe_calls) == 1
+    language = model.transcribe_calls[0]["language"]
+    assert language in {"en", "tl"}
+    assert language == expected
+
+
+# --- Property 17 --------------------------------------------------------------
+# Transcript is the joined, stripped segment text.
+#
+# stt.transcribe() strips each segment with str.strip() (Unicode whitespace per
+# str.isspace), drops empty results and joins with single spaces. The oracle
+# below is written independently in the same terms.
+
+
+class _P17WhisperModel:
+    def __init__(self, texts):
+        self.texts = texts
+
+    def detect_language(self, audio=None, **kwargs):
+        return "en", 1.0, [("en", 1.0)]
+
+    def transcribe(self, audio, **kwargs):
+        return iter([_P16Segment(t) for t in self.texts]), None
+
+
+_p17_ws = st.sampled_from([" ", "\t", "\n", "\r", "\u00a0", "\u2003", "\u3000"])
+_p17_padding = st.lists(_p17_ws, max_size=3).map("".join)
+_p17_core = st.lists(
+    st.one_of(
+        st.characters(blacklist_categories=("Cs",)),
+        st.sampled_from(["é", "ñ", "日", "😀", "salamat", " ", "\t", "\n"]),
+    ),
+    max_size=12,
+).map("".join)
+_p17_segment_text = st.one_of(
+    st.builds(lambda a, b, c: a + b + c, _p17_padding, _p17_core, _p17_padding),
+    _p17_padding,  # whitespace-only / empty segments
+)
+
+
+# Feature: ai-services, Property 17: Transcript is the joined, stripped segment text
+@settings(max_examples=200, deadline=None)
+@given(texts=st.lists(_p17_segment_text, max_size=8))
+def test_property_17_transcript_is_joined_stripped_segments(texts):
+    """**Validates: Requirements 11.1, 11.6**"""
+    model = _P17WhisperModel(texts)
+    expected = " ".join(t.strip() for t in texts if t.strip())
+
+    stt._reset_for_tests()
+    try:
+        with _p16_audio_path() as path, mock.patch.object(
+            stt, "_create_model", lambda name: model
+        ), mock.patch.object(stt, "_decode", lambda p: _P16Audio()):
+            result = stt.transcribe(path)
+    finally:
+        stt._reset_for_tests()
+
+    assert result == expected
+    assert result == result.strip()
+    if not any(t.strip() for t in texts):
+        assert result == ""
