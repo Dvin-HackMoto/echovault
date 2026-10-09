@@ -102,7 +102,7 @@ export type Dose = Pick<
   'medication_id' | 'due_at' | 'status' | 'name' | 'dose' | 'instructions' | 'photo_path'
 > & { id: string | null };
 
-/** A people row. No people endpoint exists yet (PPL-1); this follows schema.sql. */
+/** One row of GET /people (the patient gets verified people only). */
 export type Person = {
   id: string;
   name: string;
@@ -111,6 +111,11 @@ export type Person = {
   photo_path: string | null;
   notes: string | null;
   is_caregiver: number;
+  trust: 'verified' | 'unverified' | 'conflicting' | 'outdated';
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  photo_url: string | null;
   /** Set by cache.ts: the copy saved on the phone, or the hub URL if saving failed. */
   photo_uri?: string | null;
 };
@@ -136,7 +141,7 @@ export interface HubApi {
   getDosesToday(): Promise<DoseLog[]>;
   /** GET /medications (the patient gets active medicines only) */
   getMedications(): Promise<Medication[]>;
-  /** GET /people */
+  /** GET /people (the patient gets verified people only) */
   getPeople(): Promise<Person[]>;
   /** GET /patient. Null until a caregiver has created the profile (the hub returns {}). */
   getProfile(): Promise<PatientProfile | null>;

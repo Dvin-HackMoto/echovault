@@ -38,10 +38,10 @@ TODO / IN PROGRESS / BLOCKED / REVIEW / DONE
 
 These are not covered by a file or endpoint in ARCHITECTURE.md. Each has a task in its module file that assumes an answer; confirm before starting it.
 
-- **Places:** the `places` table exists but there is no `features/places/`. PPL-3 assumes it lives inside `features/people/`.
+- **Places:** ~~the `places` table exists but there is no `features/places/`~~ Resolved: PPL-3 added `features/places/` with its own `/places` router (see [03-people-and-places.md](03-people-and-places.md)).
 - **Patient profile:** setup step 1 creates the profile but no router lists it. SET-2 assumes `features/settings/router.py`.
 - **Schedule acknowledgements:** the reminder flow posts to `schedule_acks` but no endpoint is named. SCH-3 implements `POST /schedule/{id}/ack` (see [05-schedule.md](05-schedule.md)).
-- **People list:** no endpoint lists people yet. REM-2 calls `GET /people` and expects rows shaped like the `people` table, with photos at `/photos/<photo_path>`.
+- **People list:** ~~no endpoint lists people yet~~ Resolved: PPL-1 added `GET /people`. Rows are the `people` table plus `photo_url` (`/photos/<photo_path>`), as REM-2 expected.
 - **Caregiver accounts:** there is no endpoint to create a caregiver. HUB-5 assumes caregivers come from `seed.py` only.
 - **Flagging a wrong answer:** the dashboard lists flagged answers but no endpoint sets the flag. AST-6 assumes `POST /assistant/log/{id}/flag`.
 - **Caregiver-written trivia:** `trivia_questions.source` allows `caregiver` but no endpoint writes them. TRV-3 assumes `features/trivia/router.py`.

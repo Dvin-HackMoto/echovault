@@ -144,7 +144,7 @@ export interface Person {
   nickname?: string | null;
   relationship: string;
   photo_path?: string | null;
-  /** Added by the endpoint: a URL the phone can load ("/photos/<photo_path>"). ASSUMED for /people. */
+  /** Added by the hub: `/photos/<photo_path>`, or null without a photo. */
   photo_url?: string | null;
   notes?: string | null;
   is_caregiver: number; // 0 | 1
@@ -162,6 +162,8 @@ export interface Place {
   photo_path?: string | null;
   trust: Trust;
   updated_at: string;
+  /** Added by the hub: `/photos/<photo_path>`, or null without a photo. */
+  photo_url?: string | null;
 }
 
 // ─────────────────────────────── memories ────────────────────────────────

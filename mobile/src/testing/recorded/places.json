@@ -1,0 +1,32 @@
+[
+  {
+    "id": "seed-place-health-center",
+    "name": "Barangay Health Center",
+    "description": "Where Dr. Cruz holds your check-ups.",
+    "address": "Malolos, Bulacan",
+    "photo_path": null,
+    "trust": "verified",
+    "updated_at": "2026-10-10 05:59:50",
+    "photo_url": null
+  },
+  {
+    "id": "seed-place-home",
+    "name": "Home",
+    "description": "Your house, where you live with Ana.",
+    "address": "Malolos, Bulacan",
+    "photo_path": null,
+    "trust": "verified",
+    "updated_at": "2026-10-10 05:59:50",
+    "photo_url": null
+  },
+  {
+    "id": "seed-place-church",
+    "name": "Malolos Church",
+    "description": "Where you hear Mass on Sundays.",
+    "address": "Malolos, Bulacan",
+    "photo_path": null,
+    "trust": "verified",
+    "updated_at": "2026-10-10 05:59:50",
+    "photo_url": null
+  }
+]
