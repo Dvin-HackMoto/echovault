@@ -64,6 +64,162 @@ def editor_headers():
     return {"X-Role": "caregiver", "X-Caregiver-Id": EDITOR_CAREGIVER_ID}
 
 
+# ───────────── local insert helpers for Module 03/04 tests ─────────────
+#
+# The People/Memories tests must NOT import tests/factories.py (its top-level
+# imports pull in schedule/trivia constants that are red on this base commit).
+# These plain helpers insert directly into the migrated DB and return dict(row).
+
+from uuid import uuid4  # noqa: E402
+
+from app.database.seed import hash_pin  # noqa: E402
+
+
+def make_caregiver(conn, **overrides):
+    """Insert a caregiver with a real salted PIN hash; return the row as dict."""
+    data = {
+        "id": overrides.get("id", uuid4().hex),
+        "name": overrides.get("name", "Test Caregiver"),
+        "relationship": overrides.get("relationship", "nurse"),
+        "access_level": overrides.get("access_level", "admin"),
+        "pin_hash": overrides.get("pin_hash", hash_pin("1234")),
+        "is_active": overrides.get("is_active", 1),
+    }
+    conn.execute(
+        "INSERT INTO caregivers (id, name, relationship, access_level, pin_hash, "
+        "is_active) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            data["id"],
+            data["name"],
+            data["relationship"],
+            data["access_level"],
+            data["pin_hash"],
+            data["is_active"],
+        ),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM caregivers WHERE id = ?", (data["id"],)
+    ).fetchone()
+    return dict(row)
+
+
+def make_person(conn, **overrides):
+    """Insert a person (defaults: name/relationship, trust='verified')."""
+    data = {
+        "id": overrides.get("id", uuid4().hex),
+        "name": overrides.get("name", "Ana Santos"),
+        "nickname": overrides.get("nickname"),
+        "relationship": overrides.get("relationship", "daughter"),
+        "photo_path": overrides.get("photo_path"),
+        "notes": overrides.get("notes"),
+        "is_caregiver": overrides.get("is_caregiver", 0),
+        "trust": overrides.get("trust", "verified"),
+        "created_by": overrides.get("created_by"),
+    }
+    conn.execute(
+        "INSERT INTO people (id, name, nickname, relationship, photo_path, notes, "
+        "is_caregiver, trust, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            data["id"],
+            data["name"],
+            data["nickname"],
+            data["relationship"],
+            data["photo_path"],
+            data["notes"],
+            data["is_caregiver"],
+            data["trust"],
+            data["created_by"],
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM people WHERE id = ?", (data["id"],)).fetchone()
+    return dict(row)
+
+
+def make_place(conn, **overrides):
+    """Insert a place (defaults: name, trust='verified')."""
+    data = {
+        "id": overrides.get("id", uuid4().hex),
+        "name": overrides.get("name", "Home"),
+        "description": overrides.get("description"),
+        "address": overrides.get("address"),
+        "photo_path": overrides.get("photo_path"),
+        "trust": overrides.get("trust", "verified"),
+    }
+    conn.execute(
+        "INSERT INTO places (id, name, description, address, photo_path, trust) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            data["id"],
+            data["name"],
+            data["description"],
+            data["address"],
+            data["photo_path"],
+            data["trust"],
+        ),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM places WHERE id = ?", (data["id"],)).fetchone()
+    return dict(row)
+
+
+def make_memory(conn, **overrides):
+    """Insert a memory with sensible defaults. If trust='verified', also set a
+    verified_at so the row looks genuinely verified."""
+    data = {
+        "id": overrides.get("id", uuid4().hex),
+        "title": overrides.get("title"),
+        "content": overrides.get("content", "A test memory."),
+        "category": overrides.get("category", "identity"),
+        "importance": overrides.get("importance", "general"),
+        "trust": overrides.get("trust", "unverified"),
+        "validity": overrides.get("validity", "persistent"),
+        "valid_from": overrides.get("valid_from"),
+        "valid_until": overrides.get("valid_until"),
+        "event_date": overrides.get("event_date"),
+        "person_id": overrides.get("person_id"),
+        "place_id": overrides.get("place_id"),
+        "photo_path": overrides.get("photo_path"),
+        "source": overrides.get("source", "caregiver"),
+        "conflicts_with": overrides.get("conflicts_with"),
+        "verified_by": overrides.get("verified_by"),
+        "verified_at": overrides.get("verified_at"),
+    }
+    if data["trust"] == "verified" and data["verified_at"] is None:
+        data["verified_at"] = "2024-01-01 00:00:00"
+    conn.execute(
+        "INSERT INTO memories (id, title, content, category, importance, trust, "
+        "validity, valid_from, valid_until, event_date, person_id, place_id, "
+        "photo_path, source, conflicts_with, verified_by, verified_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            data["id"],
+            data["title"],
+            data["content"],
+            data["category"],
+            data["importance"],
+            data["trust"],
+            data["validity"],
+            data["valid_from"],
+            data["valid_until"],
+            data["event_date"],
+            data["person_id"],
+            data["place_id"],
+            data["photo_path"],
+            data["source"],
+            data["conflicts_with"],
+            data["verified_by"],
+            data["verified_at"],
+        ),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM memories WHERE id = ?", (data["id"],)
+    ).fetchone()
+    return dict(row)
+
+
 # ───────────── backup fixtures: real file DB on temp paths ─────────────
 #
 # Export/import operate on config.DB_PATH / config.PHOTO_DIR as real files on

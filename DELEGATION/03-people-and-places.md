@@ -12,9 +12,9 @@ Features:
 - Places CRUD
 
 Tasks:
-- [ ] PPL-1 People CRUD
-- [ ] PPL-2 Person photo upload
-- [ ] PPL-3 Places CRUD
+- [x] PPL-1 People CRUD
+- [x] PPL-2 Person photo upload
+- [x] PPL-3 Places CRUD
 
 Dependencies:
 - Hub Foundation
@@ -34,11 +34,11 @@ Goal: Fill in `features/people/repository.py` and `router.py` with list, get, cr
 Priority: P0
 Dependencies: HUB-4
 Acceptance Criteria:
-- [ ] Create and update validate required fields (`name`, `relationship`) and the `trust` enum
-- [ ] The list can be filtered by `trust`, and patient mode only receives verified people
-- [ ] Write endpoints use `require_caregiver` and record `created_by`
-- [ ] Deleting a person leaves their memories in place with `person_id` cleared
-Status: TODO
+- [x] Create and update validate required fields (`name`, `relationship`) and the `trust` enum
+- [x] The list can be filtered by `trust`, and patient mode only receives verified people
+- [x] Write endpoints use `require_caregiver` and record `created_by`
+- [x] Deleting a person leaves their memories in place with `person_id` cleared
+Status: DONE
 
 ## PPL-2
 
@@ -49,11 +49,11 @@ Goal: Add `POST /people/{id}/photo` that saves the file to `storage/photos/` and
 Priority: P0
 Dependencies: PPL-1, HUB-3
 Acceptance Criteria:
-- [ ] An uploaded image is saved under a generated file name and its path is stored on the person
-- [ ] People responses include a photo URL the phone can load
-- [ ] A non-image upload or an unknown person id is rejected
-- [ ] Replacing a photo removes the old file
-Status: TODO
+- [x] An uploaded image is saved under a generated file name and its path is stored on the person
+- [x] People responses include a photo URL the phone can load
+- [x] A non-image upload or an unknown person id is rejected
+- [x] Replacing a photo removes the old file
+Status: DONE
 
 ## PPL-3
 
@@ -64,7 +64,7 @@ Goal: Add list, get, create, update and delete for `places` (assumed inside `fea
 Priority: P2
 Dependencies: PPL-1
 Acceptance Criteria:
-- [ ] A caregiver can add a place with name, description, address and photo
-- [ ] Memories and schedule items can reference a place by id
-- [ ] Patient mode only receives verified places
-Status: TODO
+- [x] A caregiver can add a place with name, description, address and photo
+- [x] Memories and schedule items can reference a place by id
+- [x] Patient mode only receives verified places
+Status: DONE

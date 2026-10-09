@@ -33,3 +33,43 @@ SETTINGS_DEFAULTS = {
     "trivia_frequency_min": 120,
     "quiet_hours": {"start": "21:00", "end": "07:00"},
 }
+
+# ─── memories.source CHECK constraint (keep in sync with schema.sql) ───
+MEMORY_SOURCES = ("caregiver", "patient", "ai_suggested", "import")
+
+# ─── singular enum members (Module 03/04 named constants) ───
+# Values match the schema CHECK constraints exactly. Added for the People /
+# Memories domain so routers/services can reference named members rather than
+# bare strings. Purely additive — do not remove or rename.
+ROLE_PATIENT = "patient"
+ROLE_CAREGIVER = "caregiver"
+
+ACCESS_ADMIN = "admin"
+ACCESS_EDITOR = "editor"
+ACCESS_VIEWER = "viewer"
+
+TRUST_VERIFIED = "verified"
+TRUST_UNVERIFIED = "unverified"
+TRUST_CONFLICTING = "conflicting"
+TRUST_OUTDATED = "outdated"
+
+CATEGORY_IDENTITY = "identity"
+CATEGORY_ROUTINE = "routine"
+CATEGORY_HISTORY = "history"
+CATEGORY_PREFERENCE = "preference"
+CATEGORY_CARE_SAFETY = "care_safety"
+CATEGORY_ENGAGEMENT = "engagement"
+
+IMPORTANCE_CRITICAL = "critical"
+IMPORTANCE_IMPORTANT = "important"
+IMPORTANCE_GENERAL = "general"
+
+VALIDITY_PERSISTENT = "persistent"
+VALIDITY_SCHEDULED = "scheduled"
+VALIDITY_TEMPORARY = "temporary"
+VALIDITY_ARCHIVED = "archived"
+
+SOURCE_CAREGIVER = "caregiver"
+SOURCE_PATIENT = "patient"
+SOURCE_AI_SUGGESTED = "ai_suggested"
+SOURCE_IMPORT = "import"
