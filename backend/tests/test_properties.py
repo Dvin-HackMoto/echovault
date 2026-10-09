@@ -798,3 +798,172 @@ def test_property_7_unknown_language_defaults_to_fil_en(language, caregiver):
     assert prompts.build_system_prompt(language, caregiver) == prompts.build_system_prompt(
         "fil-en", caregiver
     )
+
+
+# ---------------------------------------------------------------------------
+# Fallback properties (8-12)
+# ---------------------------------------------------------------------------
+# Fact text for fallback rendering: arbitrary text plus values that stress the
+# template filler (braces, placeholder names, trailing punctuation, embedded
+# newlines/tabs, blank strings).
+_rich_fact_text = st.one_of(
+    st.none(),
+    st.text(max_size=30),
+    st.sampled_from(
+        [
+            "{who}", "{relationship}", "{notes}", "{text}", "{}", "{0}", "{name}",
+            "Sunflowers!", "Is it Sunday?", "Mass at Malolos.", "Ana", "ana",
+            "daughter", "line1\nline2", "\ttabbed\t", "", "   ", "a {who} b",
+            "Ends with dot.", "no terminal",
+        ]
+    ),
+)
+
+
+def fallback_record_dicts(now: datetime) -> st.SearchStrategy:
+    """Like ``record_dicts`` but with richer fact text for template filling."""
+    return st.fixed_dictionaries(
+        {},
+        optional={
+            "id": st.integers(min_value=1, max_value=10_000),
+            "trust": _trust_values,
+            "validity": _validity_values,
+            "conflicts_with": _conflict_values,
+            "valid_from": timestamp_values(now),
+            "valid_until": timestamp_values(now),
+            "title": _rich_fact_text,
+            "content": _rich_fact_text,
+            "name": _rich_fact_text,
+            "nickname": _rich_fact_text,
+            "relationship": _rich_fact_text,
+            "notes": _rich_fact_text,
+        },
+    )
+
+
+_non_blank_rich_text = _rich_fact_text.filter(
+    lambda v: v is not None and v.strip() != ""
+)
+
+
+@st.composite
+def _usable_renderable_record(draw):
+    """A verified, current, unbounded record with at least one renderable field."""
+    record = draw(
+        st.fixed_dictionaries(
+            {"trust": st.just("verified")},
+            optional={
+                "validity": st.sampled_from(["current", "outdated", ""]),
+                "conflicts_with": st.sampled_from([None, "", 0]),
+                "nickname": _rich_fact_text,
+                "relationship": _rich_fact_text,
+                "notes": _rich_fact_text,
+            },
+        )
+    )
+    if draw(st.booleans()):
+        # Memory: non-blank content or title (key presence makes it a memory).
+        record[draw(st.sampled_from(["content", "title"]))] = draw(_non_blank_rich_text)
+    else:
+        # Person: non-blank name, no memory keys.
+        record["name"] = draw(_non_blank_rich_text)
+    return record
+
+
+@st.composite
+def fallback_records_with_now(draw):
+    """Draw (values, now) mixing rich record dicts and non-dict junk.
+
+    One usable, renderable record is inserted at a random position so the
+    "at least one usable record has text" precondition rarely filters inputs.
+    """
+    now = draw(reference_times)
+    item = st.one_of(
+        fallback_record_dicts(now), fallback_record_dicts(now), _non_dict_values
+    )
+    values = draw(st.lists(item, max_size=10))
+    if draw(st.integers(min_value=0, max_value=9)) > 0:
+        position = draw(st.integers(min_value=0, max_value=len(values)))
+        values.insert(position, draw(_usable_renderable_record()))
+    return values, now
+
+
+# --- Independent expected-sentence renderer (spec wording, not fallback.py) ---
+
+
+def _oracle_clean(value) -> str:
+    """Independent whitespace collapse: None -> "", else collapsed str(value)."""
+    if value is None:
+        return ""
+    return " ".join(str(value).split())
+
+
+def _oracle_lang(language) -> str:
+    if isinstance(language, str) and language.strip().lower() == "fil":
+        return "fil"
+    return "en"
+
+
+def _oracle_sentence(record: dict, lang: str) -> str:
+    """Expected sentence built from the TEMPLATES wording by concatenation."""
+    is_person_kind = _oracle_rendered_fields(record) is _PERSON_RENDERED
+    if not is_person_kind:
+        text = _oracle_clean(record.get("content")) or _oracle_clean(record.get("title"))
+        if not text:
+            return ""
+        if text[-1] not in ".!?":
+            text = text + "."
+        return text
+
+    name = _oracle_clean(record.get("name"))
+    nickname = _oracle_clean(record.get("nickname"))
+    relationship = _oracle_clean(record.get("relationship"))
+    notes = _oracle_clean(record.get("notes"))
+
+    if name:
+        who = name
+        if nickname and nickname.casefold() != name.casefold():
+            who = name + " (" + nickname + ")"
+    else:
+        who = nickname
+
+    if not who:
+        return notes  # notes alone (already stripped), or ""
+
+    if lang == "fil":
+        if relationship:
+            sentence = "Si " + who + " ay ang iyong " + relationship + "."
+        else:
+            sentence = "Si " + who + "."
+    else:
+        if relationship:
+            sentence = who + " is your " + relationship + "."
+        else:
+            sentence = who + "."
+    if notes:
+        sentence = sentence + " " + notes
+    return sentence
+
+
+# Feature: ai-services, Property 8: Fallback output is exactly the templated usable records
+@settings(max_examples=200, deadline=None)
+@given(data=fallback_records_with_now(), language=language_values)
+def test_property_8_fallback_is_exactly_templated_usable_records(data, language):
+    """**Validates: Requirements 8.2, 8.3, 8.4, 8.5, 8.6**"""
+    values, now = data
+    lang = _oracle_lang(language)
+    assert fallback.fallback_language(language) == lang
+
+    usable = [v for v in values if usability_oracle(v, now)]
+    expected_sentences = []
+    for record in usable:
+        expected = _oracle_sentence(record, lang)
+        # Each per-record rendering matches the independent template oracle.
+        assert fallback.render_sentence(record, lang) == expected, record
+        if expected:
+            expected_sentences.append(expected)
+
+    assume(expected_sentences)  # at least one usable record renders text
+
+    answer = fallback.build_fallback_answer(values, language, now=now)
+    assert answer == " ".join(expected_sentences)
