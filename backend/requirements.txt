@@ -1,6 +1,8 @@
 fastapi
 uvicorn[standard]
 faster-whisper==1.2.1
+# faster-whisper 1.2.1 calls av.open(metadata_errors=...), which PyAV 19 removed
+av==18.1.0
 httpx==0.28.1
 python-multipart
 python-dotenv

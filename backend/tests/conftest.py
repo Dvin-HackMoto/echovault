@@ -23,6 +23,9 @@ def storage(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "storage" / "echovault.db")
     monkeypatch.setattr(config, "PHOTO_DIR", tmp_path / "storage" / "photos")
     monkeypatch.setattr(config, "DEMO_MODE", False)
+    # The app's lifespan calls app.ai.startup() (Whisper load + Ollama warm-up).
+    # Tests never load a real model; test_app.py checks the call itself.
+    monkeypatch.setattr("app.main.ai_startup", lambda: None)
     return tmp_path / "storage"
 
 

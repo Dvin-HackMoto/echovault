@@ -139,6 +139,27 @@ def transcribe(path: str | os.PathLike) -> str:
     return " ".join(parts).strip()
 
 
+def warm_up() -> bool:
+    """Run the loaded model once on 1 s of silence so the first real request is fast.
+
+    The first inference initialises CTranslate2 and the VAD model (~10 s on a
+    laptop CPU); doing it at startup keeps the first voice question at a few
+    seconds. Returns ``False`` (and logs) on any failure; never raises.
+    """
+    try:
+        import numpy as np
+
+        model = load_model()
+        silence = np.zeros(16000, dtype=np.float32)
+        segments, _ = model.transcribe(silence, language="en", vad_filter=False, beam_size=1)
+        for _ in segments:  # transcription is lazy until iterated
+            pass
+        return True
+    except Exception as exc:
+        logger.warning("Whisper warm-up failed: %s", exc)
+        return False
+
+
 def _reset_for_tests() -> None:
     """Drop the cached model so each test starts unloaded."""
     global _model

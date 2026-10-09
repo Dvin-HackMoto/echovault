@@ -39,6 +39,8 @@ def startup() -> None:
         log.info("Whisper model %s loaded", settings.whisper_model())
     except Exception as exc:
         log.warning("Whisper model not loaded, voice will retry on first use: %s", exc)
+    else:
+        stt.warm_up()  # never raises; keeps the first voice question fast
     try:
         llm.warm_up()  # already never raises; guard kept for safety
     except Exception as exc:
