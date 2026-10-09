@@ -179,8 +179,8 @@ def levels(db):
 
 @pytest.fixture
 def records_client(client):
-    """The real app plus a stand-in feature with create, update, delete and a read-only POST,
-    the way any feature router (people, memories, schedule...) declares its routes."""
+    """The real app plus a stand-in feature with create, update and delete, the way
+    any feature router (people, memories, schedule...) declares its routes."""
     things = APIRouter()
 
     @things.post("/things")
@@ -194,10 +194,6 @@ def records_client(client):
     @things.delete("/things/{thing_id}")
     def delete(thing_id: str, role=Depends(get_role)):
         return {"deleted": thing_id}
-
-    @things.post("/assistant/ask")
-    def ask(role=Depends(get_role)):
-        return {"answer": "ok"}
 
     client.app.include_router(things)
     return client
@@ -223,7 +219,8 @@ def test_viewer_can_still_read_and_ask(records_client, levels):
     viewer = levels[ACCESS_VIEWER]
     assert records_client.get("/settings", headers=viewer).status_code == 200
     assert records_client.get("/auth/me", headers=viewer).status_code == 200
-    assert records_client.post("/assistant/ask", headers=viewer).status_code == 200
+    # the real assistant route: asking is a POST that changes no records
+    assert records_client.post("/assistant/ask", json={"text": "What is next?"}, headers=viewer).status_code == 200
 
 
 def test_patient_requests_are_not_affected(records_client):

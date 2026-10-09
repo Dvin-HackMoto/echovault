@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { chooseSource, parseOpenApi, type HubRoutes } from "../src/api/routes";
 import { dueDose } from "../src/patient/logic";
+import type { AssistantAnswer } from "../src/api/assistant";
 import type { Dose, Patient, ScheduleOccurrence } from "../src/types";
 
 const HUB = process.env.HUB_URL;
@@ -78,6 +79,28 @@ test("doses have what the medication card reads, and the patient can answer one"
   const answered = (await res.json()) as Dose;
   assert.equal(answered.status, "taken");
   assert.equal(answered.confirmed_by, "patient");
+});
+
+test("answers have what the Ask screen reads", { skip }, async (t) => {
+  if (!(await hubRoutes()).has("POST", "/assistant/ask")) return t.skip("hub has no /assistant/ask yet");
+  const ask = (text: unknown) =>
+    fetch(`${HUB}/assistant/ask`, {
+      method: "POST",
+      headers: { ...PATIENT, "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  for (const question of ["What is next today?", "What medicine do I take?", "Who is Ana?", "What is the wifi password?"]) {
+    const res = await ask(question);
+    assert.equal(res.status, 200, `${question} -> ${res.status}`);
+    const answer = (await res.json()) as AssistantAnswer;
+    assert.ok(answer.answer, `${question}: answer`);
+    assert.ok(["template", "llm", "fallback", "no_data"].includes(answer.answer_mode));
+    assert.ok(Array.isArray(answer.people) && Array.isArray(answer.memory_ids));
+    for (const p of answer.people) assert.ok(p.id && p.name && p.relationship && "photo_url" in p);
+  }
+  assert.equal((await ask("  ")).status, 422);
+  // the caregiver's list of answers is closed to the patient
+  assert.equal((await fetch(`${HUB}/assistant/log`, { headers: PATIENT })).status, 403);
 });
 
 test("patient mode cannot change records", { skip }, async (t) => {
