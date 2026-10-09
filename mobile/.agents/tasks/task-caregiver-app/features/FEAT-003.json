@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "CGV-3 People management: add/edit/verify/remove people with photo from camera or gallery via expo-image-picker, multipart photo upload, one person markable as is_caregiver, rendered with the shared PersonCard. Backend people module is a STUB (404 until PPL-2); build the full UI wired to the contract and note the stub. Installs the expo-image-picker native package. Depends on FEAT-001. Independent of FEATs 002, 004, 005.",
+  "status": "completed",
+  "steps": [
+    "Read context.json and this FEAT file FIRST.",
+    "From mobile/ install the picker: `npx expo install expo-image-picker` (NOT npm i, so an SDK-52-compatible version is chosen). It will add the dep to package.json.",
+    "Rebuild app/(caregiver)/people.tsx: list via listPeople() from src/api/people, rendered with the shared PersonCard (pass hubUrl from getHubUrl() so photo_path resolves). loading/error/empty states.",
+    "Add/Edit form (inline modal or pushed route) with fields: name (required), nickname, relationship (required), notes (multiline), and an is_caregiver toggle. Enforce that at most one person is the caregiver: when enabling is_caregiver on one person, clear it on any other via updatePerson(otherId, { is_caregiver: 0 }). Send SQLite booleans as 1|0.",
+    "Photo: request permissions and let the caregiver pick from camera (ImagePicker.launchCameraAsync) or gallery (ImagePicker.launchImageLibraryAsync). From the picked asset build an UploadFile { uri, name, type } (derive name/type from the asset; default type 'image/jpeg') and call uploadPersonPhoto(id, file) AFTER the person exists — create the person first (createPerson), then upload the photo to the returned id.",
+    "Create via createPerson(input: PersonInput), edit via updatePerson(id, input), remove via deletePerson(id) with a confirm Alert.",
+    "Add a verify action that sets trust via updatePerson(id, { trust: 'verified' }).",
+    "Add an inline code comment that the people backend is a stub (routes 404 until PPL-2) and the screen is wired to the documented contract."
+  ],
+  "acceptance_criteria": [
+    "A person can be added with name, nickname, relationship, notes and a photo picked from camera or gallery, with the photo uploaded via uploadPersonPhoto (multipart).",
+    "Exactly one person can be marked is_caregiver; enabling it on one clears it on others.",
+    "People are listed using PersonCard with photos resolved from the hub URL.",
+    "Edit, verify (trust='verified'), and remove (with confirm) all work via updatePerson/deletePerson.",
+    "expo-image-picker is installed via `npx expo install` and appears in package.json.",
+    "From mobile/: npm install succeeds, npx tsc --noEmit prints zero errors, and grep -rn 'fetch(' app returns nothing."
+  ],
+  "verification": [
+    "cd /Users/lex/Hackathon_App_Builders/echovault/.worktrees/caregiver-app/mobile && npm install",
+    "cd /Users/lex/Hackathon_App_Builders/echovault/.worktrees/caregiver-app/mobile && npx tsc --noEmit  (expect zero errors)",
+    "grep -rn 'fetch(' /Users/lex/Hackathon_App_Builders/echovault/.worktrees/caregiver-app/mobile/app  (expect no output)"
+  ],
+  "blocked_reason": null,
+  "findings": "Rebuilt app/(caregiver)/people.tsx (replaced the Placeholder) as a list + inline Modal Add/Edit form. List renders via listPeople() using the shared PersonCard with hubUrl from getHubUrl(); loading/error/empty states follow the project pattern (ApiError message + retry). Form fields: name (required), nickname, relationship (required), notes (multiline) and an is_caregiver Switch. 'At most one caregiver' is enforced on save by clearing is_caregiver (updatePerson(otherId,{is_caregiver:0})) on every OTHER person carrying the flag; SQLite booleans are sent as 1|0. Photo via expo-image-picker: requestCameraPermissionsAsync + launchCameraAsync and requestMediaLibraryPermissionsAsync + launchImageLibraryAsync (mediaTypes ['images']); the picked asset becomes UploadFile {uri,name,type} with name/type derived from asset.fileName/asset.mimeType, defaulting type to image/jpeg, and is uploaded via uploadPersonPhoto(id,file) AFTER the person exists (createPerson first on add, then upload to the returned id). Create=createPerson, edit=updatePerson, remove=deletePerson behind a confirm Alert, verify=updatePerson(id,{trust:'verified'}). All network I/O goes through src/api/people and src/api/client (no raw fetch). Added an inline comment that the people backend is a stub (routes 404 until PPL-2) and the screen is wired to the documented contract. Installed expo-image-picker ~16.0.6 via `npx expo install` (now in package.json). Build gate PASSED from mobile/: npm install exit 0, npx tsc --noEmit zero errors, grep -rn 'fetch(' app returns nothing. On-device/Expo Go boot and live calls against the stubbed people backend were NOT run here."
+}
