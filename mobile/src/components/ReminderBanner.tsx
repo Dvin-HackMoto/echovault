@@ -2,27 +2,20 @@
 //
 // Shows the schedule reminder that is due now, with Okay and Later. All the rules
 // (what is due, what Okay and Later do, sending offline) live in src/reminders.ts.
+// Styled with the Kali kit (cream card with the bell, like the design's "Next up").
 
+import { BellRing } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 
 import { ScheduleOccurrence, parseHubTime } from '../hub';
 import { Reminders } from '../reminders';
+import { Btn, Row, Txt } from '../ui/kit';
+import { t } from '../ui/labels';
+import { useLang } from '../ui/prefs';
+import { kc } from '../ui/tokens';
 
 const CHECK_MS = 30 * 1000;
-
-// TODO(MOB-3, MOB-5): take sizes and colors from theme.ts and use BigButton once they exist.
-const styles = StyleSheet.create({
-  banner: { backgroundColor: '#FFF4CC', borderColor: '#1A1A1A', borderWidth: 2, borderRadius: 16, padding: 20 },
-  title: { color: '#1A1A1A', fontSize: 28, fontWeight: '700' },
-  time: { color: '#1A1A1A', fontSize: 24, marginTop: 4 },
-  buttons: { flexDirection: 'row', gap: 16, marginTop: 20 },
-  button: { flex: 1, minHeight: 72, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  okay: { backgroundColor: '#1A1A1A' },
-  later: { backgroundColor: '#FFFFFF', borderColor: '#1A1A1A', borderWidth: 2 },
-  okayLabel: { color: '#FFFFFF', fontSize: 26, fontWeight: '700' },
-  laterLabel: { color: '#1A1A1A', fontSize: 26, fontWeight: '700' },
-});
 
 const startTime = (occurrence: ScheduleOccurrence) =>
   parseHubTime(occurrence.occurrence_at).toLocaleTimeString('en-US', {
@@ -32,6 +25,7 @@ const startTime = (occurrence: ScheduleOccurrence) =>
   });
 
 export function ReminderBanner({ reminders }: { reminders: Reminders }) {
+  const L = useLang();
   const [due, setDue] = useState<ScheduleOccurrence | null>(null);
 
   const check = useCallback(async () => {
@@ -61,16 +55,28 @@ export function ReminderBanner({ reminders }: { reminders: Reminders }) {
 
   return (
     <View style={styles.banner} accessibilityRole="alert">
-      <Text style={styles.title}>{due.title}</Text>
-      <Text style={styles.time}>Starts at {startTime(due)}</Text>
-      <View style={styles.buttons}>
-        <Pressable style={[styles.button, styles.okay]} accessibilityRole="button" onPress={() => respond('okay')}>
-          <Text style={styles.okayLabel}>Okay</Text>
-        </Pressable>
-        <Pressable style={[styles.button, styles.later]} accessibilityRole="button" onPress={() => respond('later')}>
-          <Text style={styles.laterLabel}>Later</Text>
-        </Pressable>
-      </View>
+      <Row>
+        <View style={styles.bell}>
+          <BellRing size={24} color={kc.navy} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt size={12} weight="black" color={kc.amber} style={{ letterSpacing: 1.2, textTransform: 'uppercase' }}>
+            {t(L, 'Reminder', 'Paalala')} · {startTime(due)}
+          </Txt>
+          <Txt size={22} weight="black" color={kc.navy}>
+            {due.title}
+          </Txt>
+        </View>
+      </Row>
+      <Row gap={10} style={{ marginTop: 14 }}>
+        <Btn label={t(L, 'Okay', 'Sige')} variant="navy" onPress={() => respond('okay')} style={{ flex: 1 }} />
+        <Btn label={t(L, 'Later', 'Mamaya')} variant="ghost" onPress={() => respond('later')} style={{ flex: 1 }} />
+      </Row>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  banner: { backgroundColor: kc.cream, borderColor: kc.sun, borderWidth: 2, borderRadius: 24, padding: 16, marginBottom: 14 },
+  bell: { width: 52, height: 52, borderRadius: 16, backgroundColor: kc.sun, alignItems: 'center', justifyContent: 'center' },
+});

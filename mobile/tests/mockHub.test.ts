@@ -61,23 +61,24 @@ test("assistant: who-is, schedule, medicine and no-data answers", async () => {
   assert.match(unknown.answer, /ask Ana/);
 });
 
-test("every game question has its answer among 2-3 choices (schema JSON string)", async () => {
+test("every game question has its answer among 2-3 choices (hub round shape)", async () => {
   const hub = createDemoHub(NOON);
   for (const type of ["family_matching", "name_recall", "routine_recall", "event_recall", "memory_quiz"]) {
     const round = (await hub.handle("GET", `/games/${type}/round`)) as GameRound;
     assert.equal(round.activity, type);
+    assert.equal(round.available, true);
     assert.ok(round.questions.length > 0, type);
     for (const q of round.questions) {
-      assert.equal(typeof q.choices, "string", "choices are a JSON array string, as in trivia_questions");
-      const labels = parseChoices(q.choices);
-      assert.ok(labels.includes(q.answer), `${type}: ${q.question}`);
+      const labels = q.choices.map((c) => c.label);
+      assert.ok(labels.includes(q.answer_label), `${type}: ${q.prompt}`);
+      assert.equal(q.choices.find((c) => c.id === q.answer_id)?.label, q.answer_label);
       assert.ok(labels.length >= 2 && labels.length <= 3, `${type}: ${labels}`);
       assert.equal(new Set(labels).size, labels.length, `${type}: duplicate choices`);
     }
   }
   const pictures = (await hub.handle("GET", "/games/picture_matching/round")) as GameRound;
-  assert.equal(pictures.questions.length, 0);
-  assert.ok(pictures.message);
+  assert.equal(pictures.available, false);
+  assert.equal(pictures.reason, "not_enough_data");
   await assert.rejects(hub.handle("GET", "/games/chess/round"), { status: 404 });
 });
 
@@ -90,7 +91,8 @@ test("trivia rotates and links a person for See photos", async () => {
   assert.notEqual(second.id, first.id);
 });
 
-test("unknown routes fail like the real hub", async () => {
+test("unknown routes fail like the real hub, marked as not built yet", async () => {
   const hub = createDemoHub(NOON);
-  await assert.rejects(hub.handle("GET", "/nope"), { status: 404 });
+  await assert.rejects(hub.handle("GET", "/nope"), { status: 404, missingRoute: true });
+  await assert.rejects(hub.handle("POST", "/memories", { content: "x" }), { missingRoute: true });
 });

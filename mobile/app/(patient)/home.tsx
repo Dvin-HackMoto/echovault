@@ -1,32 +1,43 @@
-// EchoVault mobile — patient home / orientation screen (PAT-1).
-// Date and time, what is happening now and next, familiar people, and one tap
-// to every main area. In caregiver-managed mode the screen shows fewer choices.
-// The reminder banner (Module 15) shows the schedule reminder due now, read
-// from the phone's cache so it keeps working while the hub is off.
+// EchoVault mobile — patient home (PAT-1, Kali design: Home).
+// Greeting, the time and date, the hub connection, Kali's "Ask me" card, what
+// is next today, and one tap to every area. In caregiver-managed mode the tiles
+// are fewer. The reminder banner (Module 15) shows the schedule reminder due
+// now, read from the phone's cache so it keeps working while the hub is off.
 
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import {
+  BookHeart,
+  CalendarDays,
+  ChevronRight,
+  Compass,
+  Lightbulb,
+  Mic,
+  Pill,
+  Puzzle,
+  Settings as Cog,
+  Users,
+  type LucideIcon,
+} from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { Image, Pressable, StyleSheet, View } from "react-native";
 
-import { listVerifiedPeople } from "../../src/api/people";
+import { todayMedicationLogs } from "../../src/api/medications";
+import { listMemories } from "../../src/api/memories";
+import { listPeople } from "../../src/api/people";
 import { todaySchedule } from "../../src/api/schedule";
-import BigButton from "../../src/components/BigButton";
-import { Notice, useDemoFeatures } from "../../src/components/Notice";
-import PersonCard from "../../src/components/PersonCard";
 import { ReminderBanner } from "../../src/components/ReminderBanner";
 import { offline } from "../../src/offline";
-import { withCache } from "../../src/patient/cached";
 import { usePatient } from "../../src/patient/context";
 import { comingUp, isForDay, timeState } from "../../src/patient/logic";
-import { useTheme } from "../../src/theme-context";
-import { clockLabel, dateLabel, greeting, nowLabel } from "../../src/time";
-import type { Person, ScheduleOccurrence } from "../../src/types";
-
-const FEATURE_NAMES: Record<string, string> = {
-  patient: "profile", settings: "settings", schedule: "schedule", people: "family", memories: "memories",
-  assistant: "questions", medications: "medicines", games: "games", trivia: "questions of the day",
-};
+import { clockLabel, nowLabel } from "../../src/time";
+import { kindIcon } from "../../src/ui/icons";
+import { kali } from "../../src/ui/kali";
+import { Banner, Card, HubChip, IconBtn, Row, Screen, Txt, useDemoFeatures } from "../../src/ui/kit";
+import { greet, longDate, t } from "../../src/ui/labels";
+import { useLang } from "../../src/ui/prefs";
+import { useHub } from "../../src/ui/useHub";
+import { COMPANION, cardShadow, kc, navy } from "../../src/ui/tokens";
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -37,143 +48,206 @@ function useClock() {
   return now;
 }
 
+interface Tile {
+  href: string;
+  icon: LucideIcon;
+  en: string;
+  fil: string;
+  sub: string;
+  bg: string;
+  fg: string;
+}
+
 export default function Home() {
-  const theme = useTheme();
-  const { name, managedMode, hubUrl, reload } = usePatient();
+  const L = useLang();
   const now = useClock();
+  const { name, managedMode, reload } = usePatient();
   const demo = useDemoFeatures();
-  const [items, setItems] = useState<ScheduleOccurrence[] | null>(null);
-  const [people, setPeople] = useState<Person[]>([]);
-  const [unreachable, setUnreachable] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const { colors, fontSizes, spacing } = theme;
 
-  const load = useCallback(async () => {
-    const [sched, ppl] = await Promise.allSettled([
-      withCache("schedule-today", todaySchedule),
-      withCache("people", listVerifiedPeople),
-    ]);
-    if (sched.status === "fulfilled") {
-      setItems(isForDay(sched.value.data, new Date()) ? sched.value.data : []);
-    } else {
-      setItems(null);
-    }
-    if (ppl.status === "fulfilled") setPeople(ppl.value.data);
-    setUnreachable(
-      (sched.status === "fulfilled" && sched.value.fromCache)
-      || (ppl.status === "fulfilled" && ppl.value.fromCache)
-      || sched.status === "rejected",
-    );
-  }, []);
+  const schedule = useHub(todaySchedule, "schedule-today");
+  const people = useHub(() => listPeople("verified").then((ps) => ps.filter((p) => p.trust === "verified")), "people");
+  const memories = useHub(() => listMemories({ trust: "verified" }), "memories-verified");
+  const doses = useHub(todayMedicationLogs, "doses-today");
 
-  useFocusEffect(useCallback(() => {
-    load();
-  }, [load]));
+  const items = schedule.data && isForDay(schedule.data, now) ? schedule.data : [];
+  const next = comingUp(items, now, 1)[0];
+  const done = items.filter((i) => timeState(i, now) === "past").length;
+  const dosesDue = (doses.data ?? []).filter((d) => d.status === "unconfirmed").length;
+  const memoryCount = (memories.data ?? []).filter((m) => m.trust === "verified" && m.validity !== "archived").length;
+  const offlineNow = schedule.fromCache || people.fromCache;
+
+  const tiles: Tile[] = [
+    { href: "/memories", icon: BookHeart, en: "My Memories", fil: "Aking Alaala", sub: memories.data ? t(L, `${memoryCount} saved`, `${memoryCount} naka-save`) : "", bg: "#F4C6CA", fg: "#8E3B45" },
+    { href: "/people", icon: Users, en: "My Family", fil: "Aking Pamilya", sub: people.data ? t(L, `${people.data.length} people`, `${people.data.length} tao`) : "", bg: kc.skyDeep, fg: kc.navy },
+    { href: "/schedule", icon: CalendarDays, en: "Today's Schedule", fil: "Iskedyul Ngayon", sub: schedule.data ? t(L, `${done} of ${items.length} done`, `${done} sa ${items.length} tapos`) : "", bg: "#FBE3AE", fg: "#7A5200" },
+    { href: "/medications", icon: Pill, en: "Medication", fil: "Gamot", sub: doses.data ? (dosesDue ? t(L, `${dosesDue} still to take`, `${dosesDue} pa ang iinumin`) : t(L, "All set", "Ayos na")) : "", bg: "#E0D7F2", fg: kc.lilac },
+    { href: "/games", icon: Puzzle, en: "Memory Games", fil: "Mga Laro", sub: t(L, "Relaxed, no timers", "Walang oras"), bg: "#CDE8D9", fg: kc.green },
+    { href: "/trivia", icon: Lightbulb, en: "Daily Question", fil: "Tanong Ngayon", sub: t(L, "Just for fun", "Para sa saya"), bg: "#FFE6B8", fg: "#7A5200" },
+  ];
+  const shown = managedMode ? tiles.filter((x) => ["/people", "/schedule", "/medications"].includes(x.href)) : tiles;
 
   async function refresh() {
-    setRefreshing(true);
-    await Promise.all([load(), reload()]);
-    setRefreshing(false);
+    await Promise.all([schedule.reload(), people.reload(), memories.reload(), doses.reload(), reload()]);
   }
 
-  const next = items ? comingUp(items, now, managedMode ? 2 : 3) : [];
-  const familiar = people.slice(0, managedMode ? 2 : 4);
+  const NextIcon = next ? kindIcon[next.kind] ?? CalendarDays : CalendarDays;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
-      <ScrollView
-        contentContainerStyle={[styles.page, { padding: spacing.lg, gap: spacing.md }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-      >
-        <ReminderBanner reminders={offline.reminders} />
-        <View accessible accessibilityRole="header">
-          <Text style={{ fontSize: fontSizes.button, color: colors.muted }}>{greeting(now)}{name ? "," : ""}</Text>
-          {name ? <Text style={{ fontSize: fontSizes.display, fontWeight: "800", color: colors.fg }}>{name}</Text> : null}
+    <Screen onRefresh={refresh} contentStyle={{ paddingTop: 12 }}>
+      <ReminderBanner reminders={offline.reminders} />
+      <Row>
+        <LinearGradient colors={[kc.blush, "#E9A6AC"]} style={styles.initial}>
+          <Txt size={18} weight="black" color={kc.navy} fixed>
+            {(name || "?").slice(0, 1).toUpperCase()}
+          </Txt>
+        </LinearGradient>
+        <View style={{ flex: 1 }}>
+          <Txt size={15} weight="bold" muted>
+            {greet(now, L)}
+            {name ? "," : ""}
+          </Txt>
+          {name ? (
+            <Txt size={24} weight="black" color={kc.navy} numberOfLines={1}>
+              {name}!
+            </Txt>
+          ) : null}
         </View>
-        <View
-          accessible
-          style={{ backgroundColor: colors.card, borderRadius: theme.radii.lg, padding: spacing.lg, gap: spacing.xs }}
-        >
-          <Text style={{ fontSize: fontSizes.button, color: colors.fg, fontWeight: "600" }}>{dateLabel(now)}</Text>
-          <Text style={{ fontSize: fontSizes.display, color: colors.primary, fontWeight: "800" }}>{nowLabel(now)}</Text>
+        <IconBtn icon={Compass} label={t(L, "Today and where I am", "Ngayon at nasaan ako")} tone="white" size={48} onPress={() => router.push("/orientation")} />
+        <IconBtn icon={Cog} label={t(L, "Settings", "Settings")} tone="white" size={48} onPress={() => router.push("/settings")} />
+      </Row>
+
+      <Card style={{ marginTop: 16, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Txt size={40} weight="black" color={kc.navy} style={{ letterSpacing: -0.5 }}>
+            {nowLabel(now)}
+          </Txt>
+          <Txt size={16} weight="bold" muted style={{ marginTop: 4 }}>
+            {longDate(now, L)}
+          </Txt>
         </View>
+        <HubChip />
+      </Card>
 
-        {unreachable ? <Notice tone="warning" text="Can't reach the helper right now. This may not be up to date." /> : null}
+      <LinearGradient colors={["#86AEDB", kc.primary, kc.navy]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <View style={[styles.bubble, { top: -40, right: -40, width: 160, height: 160 }]} />
+        <View style={[styles.bubble, { bottom: -56, right: 64, width: 128, height: 128 }]} />
+        <Image source={kali.happy} style={styles.heroKali} resizeMode="contain" />
+        <Txt size={13} weight="black" color="rgba(255,255,255,.75)" style={{ letterSpacing: 1.6, textTransform: "uppercase" }} fixed>
+          {t(L, "Your memory companion", "Iyong kasama")}
+        </Txt>
+        <Txt size={20} weight="extra" color={kc.white} style={{ maxWidth: "64%", marginTop: 4 }}>
+          {t(L, `Hi${name ? ` ${name}` : ""}! Ask me about your day or your family.`, `Kumusta${name ? ` ${name}` : ""}! Magtanong tungkol sa araw mo o pamilya.`)}
+        </Txt>
+        <Pressable onPress={() => router.push("/ask")} accessibilityRole="button" style={({ pressed }) => [styles.askBtn, pressed && { transform: [{ scale: 0.96 }] }]}>
+          <Mic size={22} color={kc.primary} />
+          <Txt size={18} weight="black" color={kc.navy}>
+            {t(L, `Ask ${COMPANION}`, `Tanungin si ${COMPANION}`)}
+          </Txt>
+        </Pressable>
+      </LinearGradient>
 
-        <Text style={[styles.section, { fontSize: fontSizes.title, color: colors.fg, marginTop: spacing.sm }]} accessibilityRole="header">
-          Coming up
-        </Text>
-        {items === null ? (
-          <Text style={{ fontSize: fontSizes.body, color: colors.muted }}>Your schedule is not available right now.</Text>
-        ) : next.length === 0 ? (
-          <Text style={{ fontSize: fontSizes.body, color: colors.muted }}>Nothing else is planned for today.</Text>
-        ) : (
-          next.map((item) => (
-            <View
-              key={item.id + item.occurrence_at}
-              accessible
-              style={{ borderLeftWidth: 6, borderLeftColor: colors.primary, paddingLeft: spacing.md, paddingVertical: spacing.xs }}
-            >
-              <Text style={{ fontSize: fontSizes.body, color: colors.primary, fontWeight: "700" }}>
-                {timeState(item, now) === "now" ? "Now" : clockLabel(item.occurrence_at)}
-              </Text>
-              <Text style={{ fontSize: fontSizes.button, color: colors.fg, fontWeight: "600" }}>{item.title}</Text>
-              {item.person_name || item.place_name ? (
-                <Text style={{ fontSize: fontSizes.body, color: colors.muted }}>
-                  {[item.person_name && `with ${item.person_name}`, item.place_name && `at ${item.place_name}`].filter(Boolean).join(" ")}
-                </Text>
+      {offlineNow ? <Banner tone="warning" style={{ marginTop: 14 }} text={t(L, "Can't reach the hub right now. Showing what was saved.", "Hindi maabot ang hub. Ipinapakita ang naka-save.")} /> : null}
+
+      {next ? (
+        <Pressable onPress={() => router.push("/schedule")} accessibilityRole="button" style={({ pressed }) => [styles.next, pressed && { opacity: 0.9 }]}>
+          <View style={styles.nextIcon}>
+            <NextIcon size={24} color={kc.navy} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt size={12} weight="black" color={kc.amber} style={{ letterSpacing: 1.2, textTransform: "uppercase" }}>
+              {timeState(next, now) === "now" ? t(L, "Happening now", "Ngayon na") : `${t(L, "Next up", "Susunod")} · ${clockLabel(next.occurrence_at)}`}
+            </Txt>
+            <Txt size={20} weight="extra" color={kc.navy}>
+              {next.title}
+            </Txt>
+            {next.person_name || next.place_name ? (
+              <Txt size={15} muted numberOfLines={1}>
+                {[next.person_name && t(L, `with ${next.person_name}`, `kasama si ${next.person_name}`), next.place_name && `@ ${next.place_name}`].filter(Boolean).join(" ")}
+              </Txt>
+            ) : null}
+          </View>
+          <ChevronRight size={22} color={navy(0.4)} />
+        </Pressable>
+      ) : null}
+
+      <Txt size={19} weight="black" color={kc.navy} style={{ marginTop: 24, marginBottom: 12 }} accessibilityRole="header">
+        {t(L, "What would you like to do?", "Ano ang gusto mong gawin?")}
+      </Txt>
+      <View style={styles.grid}>
+        {shown.map((x) => (
+          <Pressable key={x.href} onPress={() => router.push(x.href as never)} accessibilityRole="button" accessibilityLabel={t(L, x.en, x.fil)} style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.98 }] }]}>
+            <View style={[styles.tileIcon, { backgroundColor: x.bg }]}>
+              <x.icon size={26} color={x.fg} />
+            </View>
+            <View>
+              <Txt size={17} weight="extra" color={kc.navy}>
+                {t(L, x.en, x.fil)}
+              </Txt>
+              {x.sub ? (
+                <Txt size={13} weight="bold" muted>
+                  {x.sub}
+                </Txt>
               ) : null}
             </View>
-          ))
-        )}
+          </Pressable>
+        ))}
+      </View>
 
-        <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
-          <BigButton icon="🗣️" label="Ask a question" onPress={() => router.push("/ask")} theme={theme} />
-          <BigButton icon="📅" label="My day" onPress={() => router.push("/schedule")} theme={theme} />
-          <BigButton icon="👪" label="My family" onPress={() => router.push("/people")} theme={theme} />
-          {managedMode ? null : (
-            <BigButton icon="🧩" label="Games" variant="secondary" onPress={() => router.push("/games")} theme={theme} />
-          )}
-        </View>
-
-        {familiar.length ? (
-          <>
-            <Text style={[styles.section, { fontSize: fontSizes.title, color: colors.fg, marginTop: spacing.sm }]} accessibilityRole="header">
-              Familiar faces
-            </Text>
-            {familiar.map((p) => (
-              <PersonCard
-                key={p.id}
-                person={p}
-                hubUrl={hubUrl}
-                compact
-                patientView
-                onPress={() => router.push({ pathname: "/people", params: { id: p.id } })}
-                theme={theme}
-              />
-            ))}
-          </>
-        ) : null}
-
-        {demo.length ? (
-          <Notice
-            tone="demo"
-            text={`Demo data in: ${demo.map((f) => FEATURE_NAMES[f] ?? f).join(", ")}. These parts are not connected to the hub yet.`}
-          />
-        ) : null}
-        <Text
-          onPress={() => router.push({ pathname: "/", params: { setup: "1" } })}
-          accessibilityRole="link"
-          style={{ fontSize: fontSizes.caption, color: colors.muted, textDecorationLine: "underline", textAlign: "center", paddingVertical: spacing.md }}
-        >
-          Hub settings (for caregivers)
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+      {demo.length ? <Banner tone="demo" style={{ marginTop: 18 }} text={`Demo data in: ${demo.join(", ")}. These parts are waiting for their hub modules.`} /> : null}
+      <Pressable onPress={() => router.push({ pathname: "/", params: { setup: "1" } })} accessibilityRole="link" style={{ paddingVertical: 18 }}>
+        <Txt size={14} muted center fixed style={{ textDecorationLine: "underline" }}>
+          {t(L, "Hub settings (for caregivers)", "Hub settings (para sa tagapag-alaga)")}
+        </Txt>
+      </Pressable>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { paddingBottom: 200 },
-  section: { fontWeight: "700" },
+  initial: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: kc.white },
+  hero: { marginTop: 16, borderRadius: 30, padding: 20, paddingBottom: 24, overflow: "hidden" },
+  bubble: { position: "absolute", borderRadius: 999, backgroundColor: "rgba(255,255,255,.1)" },
+  heroKali: { position: "absolute", right: -8, bottom: 6, width: 124, height: 118 },
+  askBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    minHeight: 56,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: kc.white,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  next: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: kc.cream,
+    borderWidth: 1,
+    borderColor: "rgba(247,201,107,.55)",
+  },
+  nextIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: kc.sun, alignItems: "center", justifyContent: "center" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  tile: {
+    width: "48%",
+    flexGrow: 1,
+    minHeight: 132,
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: kc.white,
+    borderWidth: 1,
+    borderColor: navy(0.05),
+    ...cardShadow,
+  },
+  tileIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
 });

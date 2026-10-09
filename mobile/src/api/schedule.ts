@@ -32,6 +32,11 @@ export function todaySchedule(): Promise<ScheduleOccurrence[]> {
   return get<ScheduleOccurrence[]>("/schedule/today");
 }
 
+/** Occurrences on another day ("YYYY-MM-DD"), e.g. tomorrow. GET /schedule/today?date=. */
+export function scheduleOn(date: string): Promise<ScheduleOccurrence[]> {
+  return get<ScheduleOccurrence[]>(`/schedule/today?date=${encodeURIComponent(date)}`);
+}
+
 /** The single next upcoming occurrence, or null. GET /schedule/next. */
 export function nextSchedule(): Promise<ScheduleOccurrence | null> {
   return get<ScheduleOccurrence | null>("/schedule/next");

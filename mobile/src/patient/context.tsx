@@ -9,6 +9,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { getHubUrl } from "../api/client";
 import { getPatient, getSettings } from "../api/settings";
 import { useThemeContext } from "../theme-context";
+import { usePrefs } from "../ui/prefs";
 import type { Patient, SettingsValues } from "../types";
 import { withCache } from "./cached";
 
@@ -34,6 +35,7 @@ const PatientContext = createContext<PatientState | null>(null);
 
 export function PatientProvider({ children }: { children: React.ReactNode }) {
   const { setFontScale } = useThemeContext();
+  const { seedFromProfile } = usePrefs();
   const [profile, setProfile] = useState<Profile>({});
   const [settings, setSettings] = useState<Partial<SettingsValues>>({});
   const [hubUrl, setHubUrlState] = useState<string | null>(null);
@@ -49,11 +51,12 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     if (p.status === "fulfilled") {
       const loaded = (p.value.data ?? {}) as Profile;
       setProfile(loaded);
+      seedFromProfile(loaded);
       if (typeof loaded.font_scale === "number" && loaded.font_scale > 0) setFontScale(loaded.font_scale);
     }
     if (s.status === "fulfilled") setSettings(s.value.data ?? {});
     if (hub.status === "fulfilled") setHubUrlState(hub.value);
-  }, [setFontScale]);
+  }, [setFontScale, seedFromProfile]);
 
   useEffect(() => {
     reload();

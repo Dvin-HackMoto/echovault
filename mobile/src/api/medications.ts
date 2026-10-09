@@ -2,7 +2,7 @@
 // Wired to the ARCHITECTURE-named routes (CRUD + log status) pending the
 // backend Medications module. All calls go through the shared client.
 
-import { del, get, post, put } from "./client";
+import { del, get, post, put, uploadFile, type UploadFile } from "./client";
 import type {
   ConfirmedBy,
   Dose,
@@ -12,15 +12,23 @@ import type {
   MedicationTime,
 } from "../types";
 
-export type MedicationInput = Partial<Omit<Medication, "id" | "updated_at">>;
+/** One dose time to send: "08:00" and "daily" or weekday codes like "MO,WE,FR". */
+export interface MedicationTimeInput {
+  time_of_day: string;
+  days?: string;
+}
+
+/** Fields a caregiver sends. Sending `times` replaces all of them; leaving it out keeps them. */
+export type MedicationInput = Partial<Omit<Medication, "id" | "updated_at">> & { times?: MedicationTimeInput[] };
 
 /** A medication with its dosing times, as the detail view needs. */
 export interface MedicationWithTimes extends Medication {
   times: MedicationTime[];
 }
 
-export function listMedications(): Promise<Medication[]> {
-  return get<Medication[]>("/medications");
+/** Every medication with its dose times (the patient only gets active ones). */
+export function listMedications(): Promise<MedicationWithTimes[]> {
+  return get<MedicationWithTimes[]>("/medications");
 }
 
 export function getMedication(id: string): Promise<MedicationWithTimes> {
@@ -60,4 +68,9 @@ export function logMedicationStatus(
     status,
     confirmed_by: confirmedBy,
   });
+}
+
+/** Pill or box photo for the patient's dose card (multipart field `photo`). */
+export function uploadMedicationPhoto(id: string, file: UploadFile): Promise<Medication> {
+  return uploadFile<Medication>(`/medications/${id}/photo`, "photo", file);
 }

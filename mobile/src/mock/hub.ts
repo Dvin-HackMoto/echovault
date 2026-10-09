@@ -8,7 +8,7 @@
 // unit-tested in tests/mockHub.test.ts.
 
 import type { AssistantAnswer } from "../api/assistant";
-import type { GameQuestion, GameRound } from "../api/games";
+import type { GameChoice, GameQuestion, GameRound, GameType } from "../api/games";
 import { clockLabel, fromStamp, toStamp } from "../time";
 import type {
   ActivityKind,
@@ -18,17 +18,19 @@ import type {
   Person,
   ScheduleKind,
   ScheduleOccurrence,
-  TriviaKind,
   TriviaPrompt,
 } from "../types";
 import { DAY, MEDICINES, MEMORIES, PEOPLE, PROFILE, QUIZ, SETTINGS, TRIVIA } from "./data";
 
 export class DemoHubError extends Error {
   readonly status: number;
+  /** True when the demo hub has no such route at all (its hub module is not merged yet). */
+  readonly missingRoute: boolean;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, missingRoute = false) {
     super(message);
     this.status = status;
+    this.missingRoute = missingRoute;
     Object.setPrototypeOf(this, DemoHubError.prototype);
   }
 }
@@ -119,15 +121,17 @@ export function createDemoHub(now: () => Date = () => new Date()) {
     );
   }
 
-  function question(id: string, kind: TriviaKind, text: string, right: string, choices: string[], extra: Partial<GameQuestion> = {}): GameQuestion {
+  // Same round shape as the hub's games module (features/games/generators.py).
+  function question(id: string, prompt: string, answer: string, labels: string[], photoUrl: string | null = null): GameQuestion {
+    const choices: GameChoice[] = labels.map((label) => ({ id: `${id}:${label}`, label, photo_url: null }));
     return {
-      id, kind, topic: null, question: text, answer: right, choices: JSON.stringify(choices),
-      memory_id: null, difficulty, source: "generated", is_active: 1, ...extra,
+      id, prompt, photo_url: photoUrl, choice_style: "text", choices,
+      answer_id: choices.find((c) => c.label === answer)?.id ?? null, answer_label: answer,
     };
   }
 
-  function gameRound(type: ActivityKind): GameRound {
-    const base = { activity: type, topic: null, difficulty };
+  function gameRound(type: GameType): GameRound {
+    const base = { activity: type, topic: null, difficulty, available: true, reason: null };
     const family = verified().filter((p) => p.relationship !== "doctor").slice(0, 4);
     // the right answer plus two others, in a stable order that is not always "first"
     const pick = (right: string, pool: string[], i: number) => {
@@ -138,23 +142,22 @@ export function createDemoHub(now: () => Date = () => new Date()) {
     if (type === "family_matching") {
       const names = family.map((p) => p.nickname ?? p.name);
       questions = family.map((p, i) =>
-        question(p.id, "family", `Which one is your ${p.relationship}?`, p.nickname ?? p.name, pick(p.nickname ?? p.name, names, i)));
+        question(p.id, `Which one is your ${p.relationship}?`, p.nickname ?? p.name, pick(p.nickname ?? p.name, names, i)));
     } else if (type === "name_recall") {
       const relations = family.map((p) => `My ${p.relationship}`);
       questions = family.map((p, i) =>
-        question(p.id, "family", `Who is ${p.nickname ?? p.name}?`, `My ${p.relationship}`, pick(`My ${p.relationship}`, relations, i), { photo_url: p.photo_url ?? null }));
+        question(p.id, `Who is ${p.nickname ?? p.name}?`, `My ${p.relationship}`, pick(`My ${p.relationship}`, relations, i), p.photo_url ?? null));
     } else if (type === "routine_recall") {
       const steps = DAY.map((d) => d.title as string);
       questions = steps.slice(0, 4).map((title, i) =>
-        question(DAY[i].id, "routine", `What usually comes after ${title}?`, steps[i + 1], pick(steps[i + 1], steps.filter((s) => s !== title), i)));
+        question(DAY[i].id, `What usually comes after ${title}?`, steps[i + 1], pick(steps[i + 1], steps.filter((x) => x !== title), i)));
     } else if (type === "event_recall" || type === "memory_quiz") {
-      questions = QUIZ.map((q) => question(q.id, "personal", q.question, q.answer, [...q.choices], { memory_id: q.memory }));
-    } else if (type === "picture_matching") {
-      return { ...base, questions: [], message: "There are no photos saved for this game yet. Ana can add some." };
+      questions = QUIZ.map((q) => question(q.id, q.question, q.answer, [...q.choices]));
     } else {
-      throw new DemoHubError(404, "Unknown game");
+      // picture_matching needs photos the demo does not have
+      return { ...base, available: false, reason: "not_enough_data", questions: [] };
     }
-    return { ...base, questions };
+    return { ...base, questions: questions.slice(0, 3) };
   }
 
   function nextTrivia(): TriviaPrompt | null {
@@ -201,7 +204,7 @@ export function createDemoHub(now: () => Date = () => new Date()) {
     }],
     ["GET", /^\/games\/([^/]+)\/round$/, ([, type]) => {
       if (!GAME_TYPES.includes(type as ActivityKind)) throw new DemoHubError(404, "Unknown game");
-      return gameRound(type as ActivityKind);
+      return gameRound(type as GameType);
     }],
     ["POST", /^\/games\/result$/, (_m, body) => {
       activity.push(body);
@@ -218,7 +221,7 @@ export function createDemoHub(now: () => Date = () => new Date()) {
         const match = bare.match(pattern);
         if (m === method.toUpperCase() && match) return handler(match, body, new URLSearchParams(qs));
       }
-      throw new DemoHubError(404, `The demo hub has no ${method} ${bare}`);
+      throw new DemoHubError(404, `The hub does not have ${method} ${bare} yet.`, true);
     },
     /** For tests: what the app logged. */
     activity,

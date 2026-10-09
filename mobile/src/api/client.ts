@@ -151,6 +151,27 @@ export const demoStore = {
   getSnapshot: (): string[] => demoSnapshot,
 };
 
+// Whether the last request to the real hub got an answer (null: none sent yet).
+let reachable: boolean | null = null;
+const reachListeners = new Set<() => void>();
+
+function setReachable(value: boolean) {
+  if (reachable === value) return;
+  reachable = value;
+  reachListeners.forEach((listener) => listener());
+}
+
+/** For useSyncExternalStore: did the hub answer the last request (null before any). */
+export const reachStore = {
+  subscribe(listener: () => void) {
+    reachListeners.add(listener);
+    return () => {
+      reachListeners.delete(listener);
+    };
+  },
+  getSnapshot: (): boolean | null => reachable,
+};
+
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -173,8 +194,8 @@ export interface RequestOptions {
   isFormData?: boolean;
 }
 
-/** Build the role headers from storage. */
-async function roleHeaders(): Promise<Record<string, string>> {
+/** Build the role headers from storage (also used for downloads the client does not make itself). */
+export async function roleHeaders(): Promise<Record<string, string>> {
   const role = (await getRole()) ?? "patient";
   const headers: Record<string, string> = { "X-Role": role };
   if (role === "caregiver") {
@@ -221,6 +242,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     try {
       return (await demoHub.handle(method, path, body)) as T;
     } catch (err) {
+      // Neither the hub nor the demo hub has this route: its module is still waiting to be merged.
+      if (err instanceof DemoHubError && err.missingRoute) {
+        throw new ApiError("not_built", err.message, 501);
+      }
       const status = err instanceof DemoHubError ? err.status : 500;
       throw new ApiError("http", err instanceof Error ? err.message : "Demo request failed.", status);
     }
@@ -258,6 +283,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       signal: controller.signal,
     });
   } catch (err) {
+    setReachable(false);
     // AbortController fires an AbortError; everything else is a network fault.
     if (err instanceof Error && err.name === "AbortError") {
       throw new ApiError("timeout", "The hub took too long to respond.");
@@ -266,6 +292,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   } finally {
     clearTimeout(timer);
   }
+  setReachable(true);
 
   if (!response.ok) {
     const detail = await safeErrorDetail(response);
