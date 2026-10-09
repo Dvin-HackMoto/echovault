@@ -55,10 +55,12 @@ echovault/
 │   │   │   │   ├── service.py       # generate today's due logs as 'unconfirmed'
 │   │   │   │   └── repository.py
 │   │   │   ├── assistant/
-│   │   │   │   ├── router.py        # POST /assistant/ask {text}, POST /assistant/voice (audio)
+│   │   │   │   ├── router.py        # POST /assistant/ask {text}, POST /assistant/voice (audio),
+│   │   │   │   │                    #   GET /assistant/log, POST /assistant/log/{id}/flag (caregiver)
 │   │   │   │   ├── intent.py        # rule-based: who_is | next_event | medication | general
 │   │   │   │   ├── retrieve.py      # structured queries + FTS, verified & valid only
-│   │   │   │   └── answer.py        # templates for meds/schedule, LLM phrasing for the rest
+│   │   │   │   ├── answer.py        # templates for meds/schedule, LLM phrasing for the rest
+│   │   │   │   └── repository.py    # assistant_log, and looking up the records an answer used
 │   │   │   ├── games/
 │   │   │   │   ├── router.py        # GET /games/{type}/round, POST /games/result
 │   │   │   │   ├── generators.py    # build questions from verified people/memories/routine
@@ -367,7 +369,7 @@ CREATE TABLE IF NOT EXISTS assistant_log (
 - **Recurrence** stays as a simple string like `daily` or `weekly:MO,WE` rather than full RRULE. Expanding it in Python for "today" and "next" is about 20 lines of code.
 - **Medication logs are created ahead of time.** A daily job (or the first request of the day) inserts `unconfirmed` rows from `medication_times`. That lets the dashboard show what was missed, and `confirmed_by` keeps "patient tapped it" separate from "caregiver confirmed it."
 - **Every personal trivia question links to a memory** through `memory_id`. That enforces "only verified information" in one query, and deleting a memory also deletes its questions.
-- **`assistant_log.memory_ids`** shows which records each answer came from — useful for demoing traceability and for caregivers fixing bad answers.
+- **`assistant_log.memory_ids`** shows which records each answer came from — useful for demoing traceability and for caregivers fixing bad answers. Despite the name it holds the id of every record used, not only memories: people for `who_is`, schedule items for `next_event`, medications for `medication`. `GET /assistant/log` resolves each id back to its record.
 - **Settings** stay as JSON values because they're read whole and never queried. Seed values:
 
 ```
@@ -459,25 +461,28 @@ Created ──► unverified ──(caregiver verifies)──► verified ──
    - Text: the patient types → `POST /assistant/ask {text}`
    - Voice: hold-to-talk (expo-av) → `POST /assistant/voice` (audio file) → `stt.py` transcribes → the text continues through the same pipeline
 2. **Intent** (`intent.py`, rule-based keywords, English and Filipino)
-   - "sino si / who is" → `who_is`
-   - "ano susunod / next / today" → `next_event`
    - "gamot / medicine" → `medication`
+   - "ano susunod / next / today / appointment" → `next_event`
+   - "sino si / who is" → `who_is`
    - anything else → `general`
+   - The rules run in that order and the first match wins, so "What is my next medicine?" is `medication`.
 3. **Retrieve** (`retrieve.py`)
-   - `who_is` → people by name/nickname + their verified, valid memories
-   - `next_event` → `schedule_items` expanded for today or the next occurrence
+   - `who_is` → people by name/nickname + their verified, valid memories. If no verified person has that name, the name is searched in memories like a `general` question.
+   - `next_event` → `schedule_items` expanded for today or the next occurrence. "next" gives the one next item, "today" what is still left today, and "appointment" the next item of kind `appointment`.
    - `medication` → `medications` + `medication_times` + today's `medication_logs`
    - `general` → FTS query on memories (verified, not archived, within validity)
 4. **Answer** (`answer.py`)
-   - `medication` / `next_event` → fixed template, no LLM involved
-     > "Your next medicine is Losartan, 1 tablet, at 8:00 PM, after dinner."
+   - `medication` / `next_event` → fixed template, no LLM involved. The medication answer lists today's doses, then the next one:
+     > "Today you take Metformin, 1 tablet, at 8:00 AM, after breakfast (marked as taken) and Losartan, 1 tablet, at 8:00 PM, after dinner. Your next medicine is Losartan, 1 tablet, at 8:00 PM, after dinner."
+
+     A confirmed dose is described as "marked as taken", never as taken. Templates follow `patient.language`: `fil` gives Filipino, `en` and `fil-en` English.
    - `who_is` / `general` with records → LLM rephrases **only** the retrieved records (`prompts.py`: use only these facts; if they're not enough, say so)
    - No verified records → `no_data` reply:
      > "I don't have that saved yet. You can ask Ana." (the `people` row with `is_caregiver = 1`)
    - Ollama down or timed out (~8s) → `fallback.py` joins the retrieved records into a plain sentence
-5. **Log** to `assistant_log` (question, intent, answer, answer_mode, memory_ids).
-6. **Respond** with `{answer, people[] with photo URLs, memory_ids}` → the phone shows the answer with photos and reads it aloud (expo-speech).
-7. A caregiver can later flag a wrong answer from the dashboard and fix the source memory.
+5. **Log** to `assistant_log` (question, intent, answer, answer_mode, memory_ids). A recording with no words in it is answered with "Sorry, I didn't catch that" and is not looked up or logged.
+6. **Respond** with `{answer, answer_mode, intent, people[] with photo URLs, memory_ids}` (voice adds `transcript`) → the phone shows the answer with photos and reads it aloud (expo-speech).
+7. A caregiver can later review the answers (`GET /assistant/log`, each with the records it used), flag a wrong one (`POST /assistant/log/{id}/flag`, body `{"flagged": false}` to clear it) and fix the source memory.
 
 ### 6. Reminders (Schedule)
 

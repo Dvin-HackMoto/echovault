@@ -132,6 +132,8 @@ export default function Ask() {
       const res = await askVoice(audio);
       if (!res.answer) throw new Error("empty answer");
       showAnswer(res, res.transcript ?? "");
+      // the hub could not make out any words: its answer says so, and typing is ready
+      if (res.transcript === "") input.current?.focus();
     } catch (e) {
       setError(messageFor(e, true));
       setPhase("error");

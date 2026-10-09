@@ -94,8 +94,8 @@ The app calls these exact paths. **ON MAIN** = already served by `main` or a pus
 | Home, My day | `GET /schedule/today` | `feature/05-schedule` | occurrences with `occurrence_at`, `ends_at`, `title`, `person_name`, `place_name`, `notes` |
 | Home, My family | `GET /people?trust=verified` | ASSUMED (PPL-1) | `id`, `name`, `nickname`, `relationship`, `notes`, `trust`, and **`photo_url`** (or `photo_path`, served at `/photos/<photo_path>`) |
 | Person details | `GET /memories?trust=verified&person_id=<id>` | ASSUMED (MEM-1): **needs a `person_id` filter** | `content`. The app also drops anything not `verified`, `archived`, or about someone else |
-| Ask | `POST /assistant/ask {text}` | ASSUMED (AST-4) | `{answer, people[], memory_ids, answer_mode}` (people with `photo_url`) |
-| Ask (voice) | `POST /assistant/voice` multipart **field `audio`** (m4a) | ASSUMED (AST-5) | same as ask, plus **`transcript`** |
+| Ask | `POST /assistant/ask {text}` | `feature/08-assistant` (AST-4) | `{answer, people[], memory_ids, answer_mode, intent}` (people with `photo_url`) |
+| Ask (voice) | `POST /assistant/voice` multipart **field `audio`** (m4a) | `feature/08-assistant` (AST-5) | same as ask, plus **`transcript`** (`""` when no words were heard; the answer then says "Sorry, I didn't catch that") |
 | Medication card | `GET /medications/today`, `POST /medications/logs/{id} {status}` | `feature/06-medications` | dose rows with `name`, `dose`, `instructions`, `photo_url`, `due_at`, `status` |
 | Games | `GET /games/{type}/round` | ASSUMED (GAM-2) | the foundation's `GameRound`: `{activity, topic, difficulty, questions: TriviaQuestion[], message?}`. Each question uses `question`, `answer`, `choices` (JSON array string as in `trivia_questions`, or null for "Show the answer") and optional `photo_url`. No questions plus a `message` = "not enough data" |
 | Games, trivia card | `POST /games/result` | ASSUMED (GAM-3) | `{activity, topic, question_ref, outcome, difficulty, duration_sec}`. **Trivia outcomes use the same endpoint with `activity: "trivia_prompt"`**, since both write `activity_log` |
