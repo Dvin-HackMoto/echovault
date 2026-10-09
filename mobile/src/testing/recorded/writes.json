@@ -1,0 +1,63 @@
+{
+  "ack_ok": {
+    "status": 200,
+    "body": {
+      "id": "6334adf8-1df3-447c-abd9-15fc9e93574f",
+      "schedule_item_id": "3a87098d-5f3e-485c-bd0d-880d3eccb45f",
+      "occurrence_at": "2026-10-10 18:00:00",
+      "response": "snoozed",
+      "responded_at": "2026-10-10 02:20:20"
+    }
+  },
+  "ack_not_an_occurrence": {
+    "status": 422,
+    "body": {
+      "detail": "occurrence_at is not an occurrence of this item"
+    }
+  },
+  "ack_unknown_item": {
+    "status": 404,
+    "body": {
+      "detail": "Schedule item not found"
+    }
+  },
+  "dose_ok": {
+    "status": 200,
+    "body": {
+      "id": "2c685ee6-7c19-4757-accb-74b33475fadc",
+      "medication_id": "6d0dd13f-e9d8-4bb1-90b2-9bc75ed34c88",
+      "due_at": "2026-10-10 20:00:00",
+      "status": "skipped",
+      "confirmed_by": "patient",
+      "responded_at": "2026-10-10 02:20:20",
+      "note": null,
+      "name": "Losartan",
+      "dose": "1 tablet",
+      "instructions": "after meals",
+      "photo_path": null,
+      "time_of_day": "20:00",
+      "photo_url": null
+    }
+  },
+  "dose_unknown": {
+    "status": 404,
+    "body": {
+      "detail": "Dose not found"
+    }
+  },
+  "dose_bad_status": {
+    "status": 422,
+    "body": {
+      "detail": "status must be one of taken, skipped"
+    }
+  },
+  "after_ack": [
+    {
+      "id": "6334adf8-1df3-447c-abd9-15fc9e93574f",
+      "schedule_item_id": "3a87098d-5f3e-485c-bd0d-880d3eccb45f",
+      "occurrence_at": "2026-10-10 18:00:00",
+      "response": "snoozed",
+      "responded_at": "2026-10-10 02:20:20"
+    }
+  ]
+}

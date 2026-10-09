@@ -1,0 +1,71 @@
+[
+  {
+    "id": "med-1",
+    "name": "Amlodipine",
+    "dose": "1 tablet",
+    "instructions": "after breakfast",
+    "photo_path": null,
+    "start_date": null,
+    "end_date": null,
+    "is_active": 1,
+    "created_by": "caregiver-demo-1",
+    "updated_at": "2026-10-10 02:19:54",
+    "times": [
+      {
+        "id": "medtime-1",
+        "medication_id": "med-1",
+        "time_of_day": "08:00",
+        "days": "daily"
+      }
+    ],
+    "photo_url": null
+  },
+  {
+    "id": "6d0dd13f-e9d8-4bb1-90b2-9bc75ed34c88",
+    "name": "Losartan",
+    "dose": "1 tablet",
+    "instructions": "after meals",
+    "photo_path": null,
+    "start_date": null,
+    "end_date": null,
+    "is_active": 1,
+    "created_by": "caregiver-demo-1",
+    "updated_at": "2026-10-10 02:20:04",
+    "times": [
+      {
+        "id": "b262720a-694a-423c-b074-fe424f788a2e",
+        "medication_id": "6d0dd13f-e9d8-4bb1-90b2-9bc75ed34c88",
+        "time_of_day": "08:00",
+        "days": "daily"
+      },
+      {
+        "id": "ca86d024-5adf-4424-926b-dae2b446f4b2",
+        "medication_id": "6d0dd13f-e9d8-4bb1-90b2-9bc75ed34c88",
+        "time_of_day": "20:00",
+        "days": "daily"
+      }
+    ],
+    "photo_url": null
+  },
+  {
+    "id": "d07dc085-838f-4920-8dca-4e0619555469",
+    "name": "Metformin",
+    "dose": "1 tablet",
+    "instructions": "before breakfast",
+    "photo_path": null,
+    "start_date": null,
+    "end_date": null,
+    "is_active": 1,
+    "created_by": "caregiver-demo-1",
+    "updated_at": "2026-10-10 02:20:04",
+    "times": [
+      {
+        "id": "a0279a31-a15b-4794-b70b-4a0060bc5350",
+        "medication_id": "d07dc085-838f-4920-8dca-4e0619555469",
+        "time_of_day": "06:30",
+        "days": "MO,WE,FR,SA"
+      }
+    ],
+    "photo_url": null
+  }
+]

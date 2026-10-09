@@ -41,6 +41,7 @@ These are not covered by a file or endpoint in ARCHITECTURE.md. Each has a task 
 - **Places:** the `places` table exists but there is no `features/places/`. PPL-3 assumes it lives inside `features/people/`.
 - **Patient profile:** setup step 1 creates the profile but no router lists it. SET-2 assumes `features/settings/router.py`.
 - **Schedule acknowledgements:** the reminder flow posts to `schedule_acks` but no endpoint is named. SCH-3 assumes `POST /schedule/{id}/ack`.
+- **People list:** no endpoint lists people yet. REM-2 calls `GET /people` and expects rows shaped like the `people` table, with photos at `/photos/<photo_path>`.
 - **Caregiver accounts:** there is no endpoint to create a caregiver. HUB-5 assumes caregivers come from `seed.py` only.
 - **Flagging a wrong answer:** the dashboard lists flagged answers but no endpoint sets the flag. AST-6 assumes `POST /assistant/log/{id}/flag`.
 - **Caregiver-written trivia:** `trivia_questions.source` allows `caregiver` but no endpoint writes them. TRV-3 assumes `features/trivia/router.py`.

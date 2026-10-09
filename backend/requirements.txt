@@ -1,7 +1,11 @@
 fastapi
 uvicorn[standard]
-faster-whisper
-httpx
+faster-whisper==1.2.1
+httpx==0.28.1
 python-multipart
 python-dotenv
-pytest
+tzdata==2026.5
+pytest==9.1.1
+respx==0.23.1
+hypothesis==6.168.5
+pytest-socket==0.8.1

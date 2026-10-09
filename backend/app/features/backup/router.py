@@ -78,7 +78,7 @@ def _valid_backup_tables(db_path):
 
 
 @router.get("/backup/export")
-def export_backup(caregiver_id=Depends(require_caregiver), conn=Depends(get_db)):
+def export_backup(caregiver=Depends(require_caregiver), conn=Depends(get_db)):
     """Export a zip of the database and every photo. Caregiver only.
 
     The zip holds a consistent snapshot of the DB as `echovault.db` plus every
@@ -133,7 +133,8 @@ def export_backup(caregiver_id=Depends(require_caregiver), conn=Depends(get_db))
 async def import_backup(
     file: UploadFile = File(...),
     confirm: str = Form(None),
-    caregiver_id=Depends(require_admin),
+    caregiver=Depends(require_admin),
+    conn=Depends(get_db),
 ):
     """Replace the DB and photos from a backup bundle. Admin only.
 
@@ -177,7 +178,9 @@ async def import_backup(
                 status_code=400, detail="Not a valid EchoVault backup"
             )
 
-        # (c) transactional swap keyed off config paths.
+        # (c) transactional swap keyed off config paths. The admin check ran on this
+        # request's connection; Windows refuses to replace a database file that is open.
+        conn.close()
         _swap_in(stage_dir)
     except HTTPException:
         # Validation / confirmation failures: current data is untouched.
@@ -196,8 +199,8 @@ def _swap_in(stage_dir):
     full success the sidecars are removed; on ANY failure the originals are
     restored from the sidecars so the hub is never left broken.
     """
-    db_path = config.DB_PATH
-    photo_dir = config.PHOTO_DIR
+    db_path = str(config.DB_PATH)
+    photo_dir = str(config.PHOTO_DIR)
     db_bak = db_path + ".bak"
     photo_bak = photo_dir + ".bak"
 
