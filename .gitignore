@@ -1,2 +1,47 @@
 # runtime data (SQLite db + photos)
 backend/storage/
+
+# environment files (keep the example)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# native builds and signing keys
+mobile/android/
+mobile/ios/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# backup exports
+*.zip
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
