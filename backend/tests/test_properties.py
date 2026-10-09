@@ -967,3 +967,39 @@ def test_property_8_fallback_is_exactly_templated_usable_records(data, language)
 
     answer = fallback.build_fallback_answer(values, language, now=now)
     assert answer == " ".join(expected_sentences)
+
+
+# --- Property 9 ---------------------------------------------------------------
+# Markers have the fixed shape produced by make_marker(); scan output for any.
+import re  # noqa: E402 - kept local to this section
+
+_MARKER_RE = re.compile(r"ZQX\d{3}F\dMARK")
+
+# Caregivers whose rendering can never contain a record marker, so any marker
+# in the no-data reply would have to come from a record.
+marker_free_caregivers = caregiver_values.filter(lambda c: "ZQX" not in repr(c))
+
+
+# Feature: ai-services, Property 9: Fallback contains only facts from usable records
+@settings(max_examples=200, deadline=None)
+@given(
+    data=marked_records_with_now(),
+    language=language_values,
+    caregiver=marker_free_caregivers,
+)
+def test_property_9_fallback_only_uses_usable_record_facts(data, language, caregiver):
+    """**Validates: Requirements 8.10, 13.5**"""
+    values, now, markers = data
+    answer = fallback.build_fallback_answer(values, language, caregiver, now=now)
+
+    usable_markers = set()
+    dropped_markers = set()
+    for value, field_markers in zip(values, markers):
+        target = usable_markers if usability_oracle(value, now) else dropped_markers
+        target.update(field_markers.values())
+    dropped_only = dropped_markers - usable_markers
+
+    found = set(_MARKER_RE.findall(answer))
+    assert found <= usable_markers, f"markers not from usable records: {found - usable_markers}"
+    for marker in dropped_only:
+        assert marker not in answer, f"dropped record marker {marker} leaked: {answer!r}"
