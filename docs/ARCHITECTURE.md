@@ -100,8 +100,14 @@ echovault/
     │   ├── voice/speak.ts           # expo-speech (TTS stays on the phone)
     │   ├── reminders.ts             # schedules local notifications from /schedule + meds
     │   ├── cache.ts                 # last-fetched schedule/people in AsyncStorage
+    │   ├── queue.ts                 # acks and medication confirmations waiting for the hub
+    │   ├── hub.ts                   # interfaces reminders/cache/queue use for the hub and the phone
+    │   ├── hubClient.ts             # those hub calls over HTTP (schedule, medications, patient, people)
+    │   ├── platform.ts              # wires those interfaces to Expo
+    │   ├── useCached.ts             # hook for screens that read through the cache
+    │   ├── testing/                 # recorded hub responses, fake hub and phone for tests
     │   ├── types.ts                 # plain row shapes, mirrors the DB
-    │   ├── components/              # BigButton, PersonCard, MicButton, ReminderBanner
+    │   ├── components/              # BigButton, PersonCard, MicButton, ReminderBanner, StaleNotice
     │   └── theme.ts                 # large text, high contrast
     └── package.json
 ```
