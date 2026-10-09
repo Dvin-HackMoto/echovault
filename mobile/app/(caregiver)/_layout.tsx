@@ -188,6 +188,7 @@ export default function CaregiverLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="memories/index" />
+        <Stack.Screen name="memories/[id]" />
         <Stack.Screen name="people" />
         <Stack.Screen name="schedule" />
         <Stack.Screen name="medications" />
