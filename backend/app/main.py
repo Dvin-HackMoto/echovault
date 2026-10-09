@@ -6,13 +6,14 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.database.connection import migrate
 from app.database.seed import seed
+from app.middleware.dependencies import enforce_access_level
 
 FEATURES_DIR = Path(__file__).parent / "features"
 
@@ -67,7 +68,8 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="EchoVault Hub", lifespan=lifespan)
+    # enforce_access_level runs before every route: viewers are read-only, only admins delete
+    app = FastAPI(title="EchoVault Hub", lifespan=lifespan, dependencies=[Depends(enforce_access_level)])
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
     @app.get("/health")
