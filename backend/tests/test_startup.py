@@ -29,7 +29,18 @@ MODEL = "startup-model:1b"
 WHISPER = "tiny-test"
 GENERATE_URL = f"{BASE_URL}/api/generate"
 
-FAKE_MODEL = object()
+class _FakeWhisper:
+    """Records the startup warm-up call (stt.warm_up transcribes 1 s of silence)."""
+
+    def __init__(self):
+        self.transcribe_calls = 0
+
+    def transcribe(self, audio, **kwargs):
+        self.transcribe_calls += 1
+        return iter(()), None
+
+
+FAKE_MODEL = _FakeWhisper()
 
 
 @pytest.fixture(autouse=True)
@@ -79,6 +90,7 @@ def test_startup_combinations(monkeypatch, caplog, whisper_ok, ollama_ok):
 
     if whisper_ok:
         assert stt._model is FAKE_MODEL
+        assert FAKE_MODEL.transcribe_calls >= 1  # warmed up once at startup
     else:
         assert stt._model is None
         assert any("whisper files missing" in m for m in messages)

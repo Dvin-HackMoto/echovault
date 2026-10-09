@@ -53,6 +53,34 @@ def test_demo_mode_seeds_on_startup(monkeypatch):
         assert client.get("/photos/seed-ana.png").status_code == 200
 
 
+def test_startup_runs_ai_startup_after_migrate(monkeypatch):
+    # ARCHITECTURE "Hub Startup": migrate, (seed), load Whisper + warm up Ollama, then ready.
+    calls = []
+    monkeypatch.setattr("app.main.migrate", lambda: calls.append("migrate"))
+    monkeypatch.setattr("app.main.ai_startup", lambda: calls.append("ai"))
+    with TestClient(create_app()) as client:
+        assert client.get("/health").status_code == 200
+    assert calls == ["migrate", "ai"]
+
+
+def test_ai_startup_failures_do_not_stop_the_hub(monkeypatch):
+    # The real app.ai.startup(), with Whisper and Ollama both unavailable.
+    from app.ai import llm, stt, startup
+
+    def no_whisper(name):
+        raise RuntimeError("no whisper model")
+
+    monkeypatch.setattr(stt, "_create_model", no_whisper)
+    monkeypatch.setattr(llm, "warm_up", lambda: False)
+    monkeypatch.setattr("app.main.ai_startup", startup)
+    stt._reset_for_tests()
+    try:
+        with TestClient(create_app()) as client:
+            assert client.get("/health").status_code == 200
+    finally:
+        stt._reset_for_tests()
+
+
 def test_photos_are_served(client):
     (config.PHOTO_DIR / "ana.png").write_bytes(b"not-really-a-png")
     response = client.get("/photos/ana.png")

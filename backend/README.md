@@ -34,7 +34,7 @@ From `backend/`, with the virtual environment active:
 uvicorn app.main:app --host 0.0.0.0
 ```
 
-On startup the hub creates `storage/` (the SQLite database and `storage/photos/`), applies `app/database/schema.sql`, and prints its LAN address, for example `http://192.168.1.5:8000`. Enter that address on the phones.
+On startup the hub creates `storage/` (the SQLite database and `storage/photos/`), applies `app/database/schema.sql`, loads and warms up the Whisper model, sends Ollama a warm-up prompt, and prints its LAN address, for example `http://192.168.1.5:8000`. Enter that address on the phones.
 
 `--host 0.0.0.0` is what makes the hub reachable from the phones.
 
@@ -119,3 +119,18 @@ The default model is `qwen2.5:3b`. To use another one:
 ### Whisper (speech to text)
 
 `WHISPER_MODEL` in `.env` sets the speech-to-text model size. The default is `small`; the allowed sizes are `tiny`, `base`, `small` and `medium` (smaller is faster, larger is more accurate). faster-whisper downloads the model on first use, which needs internet once, so run the hub with internet once before going offline.
+
+If Ollama is stopped or slower than `LLM_TIMEOUT_S` (8 s), the hub still starts and the assistant answers from `app/ai/fallback.py` templates built from the same records. If Whisper can't load, voice questions retry the load on first use; text questions are unaffected.
+
+### Checking the AI services with the real models
+
+The default `python -m pytest` run never touches Ollama or Whisper. To check them for real (Ollama running with the model pulled, Whisper downloaded once):
+
+```
+python -m pytest -m integration
+```
+
+- `tests/integration/test_llm_grounding.py` asks the model 5 questions the demo records don't cover (each must get the "I don't have that saved" reply) and 2 they do cover.
+- `tests/integration/test_stt_audio.py` transcribes `tests/fixtures/audio/en_clear.wav` ("Who is Ana?") and `fil_clear.wav` ("Sino si Ana?"), plus an optional `phone_sample.m4a` recorded on the phone. Add these recordings first; each test skips with a message until its file exists.
+
+Tests whose service isn't available are skipped with a message saying why, not failed.

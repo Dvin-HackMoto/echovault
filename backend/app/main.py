@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import config
+from app.ai import startup as ai_startup
 from app.database.connection import migrate
 from app.database.seed import seed
 from app.middleware.dependencies import enforce_access_level
@@ -63,6 +64,11 @@ async def lifespan(app: FastAPI):
     _startup_step("migrate database", migrate)
     if config.DEMO_MODE:
         _startup_step("seed demo data", seed)
+    # AI-1 / AI-4: load Whisper once and warm up Ollama so the first answer isn't slow.
+    # Never raises: a missing model or a stopped Ollama only logs a warning, and the
+    # assistant falls back to template answers (fallback.py) until it comes back.
+    print("Loading speech-to-text and warming up the local model (first run can take a while)...")
+    ai_startup()
     print(f"EchoVault hub ready. Phones connect to: http://{lan_ip()}:8000 (uvicorn's default port)")
     yield
 
