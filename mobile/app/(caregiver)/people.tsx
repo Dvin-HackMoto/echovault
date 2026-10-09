@@ -1,0 +1,1 @@
+// manage people and photos

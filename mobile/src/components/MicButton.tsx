@@ -1,0 +1,1 @@
+// MicButton component

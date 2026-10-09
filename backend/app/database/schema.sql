@@ -1,0 +1,1 @@
+-- tables + memories_fts
