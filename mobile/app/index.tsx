@@ -10,8 +10,15 @@
 //   Patient  -> setRole('patient')   -> open the (patient) group directly
 //   Caregiver-> setRole('caregiver') -> go to the (caregiver) PIN placeholder
 // The hub IP is always changeable via "Change hub IP".
+//
+// Module 14 additions:
+//   - "Use demo data (no hub)" and a "Hub only" switch set the data mode
+//     (src/api/routes.ts): "auto" uses the hub for every route it has and demo
+//     data, labelled "Demo", for the rest; "hub" never uses demo data.
+//   - Once Patient is picked, later launches open the patient home directly;
+//     its "Hub settings" link comes back here with ?setup=1.
 
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +26,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -26,11 +34,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import BigButton from "../src/components/BigButton";
+import { Notice } from "../src/components/Notice";
 import {
   checkHealth,
+  getDataMode,
   getHubUrl,
+  getRole,
+  setDataMode,
   setHubUrl,
   setRole,
+  type DataMode,
 } from "../src/api/client";
 import { useTheme } from "../src/theme-context";
 
@@ -63,34 +76,42 @@ function normalizeHubInput(raw: string): string | null {
   return `${url.protocol}//${url.hostname}:${port}`;
 }
 
-type Phase = "loading" | "setup" | "picker";
+type Phase = "loading" | "setup" | "picker" | "patient";
 
 export default function Index() {
   const theme = useTheme();
   const router = useRouter();
+  const { setup } = useLocalSearchParams<{ setup?: string }>();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [hubUrl, setHubUrlState] = useState<string | null>(null);
+  const [mode, setMode] = useState<DataMode>("auto");
   const [input, setInput] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // On mount, decide between setup (no hub saved) and the mode picker.
+  // On mount, decide between setup (no hub saved), the mode picker, and
+  // reopening patient mode.
   useEffect(() => {
     let cancelled = false;
-    getHubUrl().then((saved) => {
+    Promise.all([getHubUrl(), getDataMode(), getRole()]).then(([saved, savedMode, role]) => {
       if (cancelled) return;
-      if (saved) {
-        setHubUrlState(saved);
+      setHubUrlState(saved);
+      setMode(savedMode);
+      const ready = Boolean(saved) || savedMode === "demo";
+      if (ready && role === "patient" && !setup) {
+        setPhase("patient");
+      } else if (ready && !setup) {
         setPhase("picker");
       } else {
+        setInput(saved?.replace(/^https?:\/\//, "") ?? "");
         setPhase("setup");
       }
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setup]);
 
   async function onSaveHub() {
     setError(null);
@@ -106,9 +127,19 @@ export default function Index() {
       setError("Couldn't reach the hub at that address. Check it's on and on the same Wi-Fi, then try again.");
       return;
     }
+    const nextMode: DataMode = mode === "hub" ? "hub" : "auto";
     await setHubUrl(normalized);
+    await setDataMode(nextMode);
     setHubUrlState(normalized);
+    setMode(nextMode);
     setInput("");
+    setPhase("picker");
+  }
+
+  async function onUseDemo() {
+    setError(null);
+    await setDataMode("demo");
+    setMode("demo");
     setPhase("picker");
   }
 
@@ -126,8 +157,13 @@ export default function Index() {
 
   function onChangeHub() {
     setError(null);
-    setInput(hubUrl ?? "");
+    setInput(hubUrl?.replace(/^https?:\/\//, "") ?? "");
+    if (mode === "demo") setMode("auto");
     setPhase("setup");
+  }
+
+  if (phase === "patient") {
+    return <Redirect href="/(patient)/home" />;
   }
 
   if (phase === "loading") {
@@ -182,12 +218,23 @@ export default function Index() {
               {error ? (
                 <Text style={{ color: theme.colors.danger, fontSize: theme.fontSizes.body }}>{error}</Text>
               ) : null}
+              <View style={[styles.row, { gap: theme.spacing.md }]}>
+                <Switch
+                  value={mode === "hub"}
+                  onValueChange={(on) => setMode(on ? "hub" : "auto")}
+                  accessibilityLabel="Hub only, never use demo data"
+                />
+                <Text style={{ flex: 1, color: theme.colors.fg, fontSize: theme.fontSizes.body }}>
+                  Hub only (never use demo data)
+                </Text>
+              </View>
               <BigButton
                 label={checking ? "Checking…" : "Connect"}
                 onPress={onSaveHub}
                 loading={checking}
                 theme={theme}
               />
+              <BigButton label="Use demo data (no hub)" variant="secondary" onPress={onUseDemo} theme={theme} />
             </View>
           ) : (
             <View style={{ gap: theme.spacing.md }}>
@@ -196,9 +243,16 @@ export default function Index() {
               </Text>
               <BigButton label="Patient" onPress={onPickPatient} theme={theme} />
               <BigButton label="Caregiver" onPress={onPickCaregiver} theme={theme} />
-              <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.caption, marginTop: theme.spacing.sm }}>
-                Connected to {hubUrl}
-              </Text>
+              {mode === "demo" ? (
+                <Notice tone="demo" text="Using demo data. No hub is needed." />
+              ) : (
+                <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.caption, marginTop: theme.spacing.sm }}>
+                  Connected to {hubUrl}
+                  {mode === "hub"
+                    ? ". Only the hub's data is used."
+                    : `. Parts the hub does not have yet use demo data, marked "Demo".`}
+                </Text>
+              )}
               <BigButton label="Change hub IP" variant="danger" onPress={onChangeHub} theme={theme} />
             </View>
           )}
@@ -212,4 +266,5 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { flexGrow: 1, justifyContent: "center" },
+  row: { flexDirection: "row", alignItems: "center" },
 });

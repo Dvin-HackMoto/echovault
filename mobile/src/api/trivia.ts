@@ -3,12 +3,12 @@
 // Trivia module. All calls go through the shared client.
 
 import { get } from "./client";
-import type { TriviaQuestion } from "../types";
+import type { TriviaPrompt } from "../types";
 
 /**
  * The next prompt, or null when the hub suppresses it (quiet hours, a nearby
  * schedule item, or the frequency window not elapsed — ARCHITECTURE §9).
  */
-export function nextTrivia(): Promise<TriviaQuestion | null> {
-  return get<TriviaQuestion | null>("/trivia/next");
+export function nextTrivia(): Promise<TriviaPrompt | null> {
+  return get<TriviaPrompt | null>("/trivia/next");
 }

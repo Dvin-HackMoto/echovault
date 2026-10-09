@@ -3,7 +3,7 @@
 // backend Schedule module. All calls go through the shared client.
 
 import { del, get, post, put } from "./client";
-import type { AckResponse, ScheduleAck, ScheduleItem } from "../types";
+import type { AckResponse, ScheduleAck, ScheduleItem, ScheduleOccurrence } from "../types";
 
 export type ScheduleInput = Partial<Omit<ScheduleItem, "id" | "updated_at">>;
 
@@ -28,13 +28,13 @@ export function deleteScheduleItem(id: string): Promise<void> {
 }
 
 /** Today's occurrences (recurrence expanded server-side). GET /schedule/today. */
-export function todaySchedule(): Promise<ScheduleItem[]> {
-  return get<ScheduleItem[]>("/schedule/today");
+export function todaySchedule(): Promise<ScheduleOccurrence[]> {
+  return get<ScheduleOccurrence[]>("/schedule/today");
 }
 
 /** The single next upcoming occurrence, or null. GET /schedule/next. */
-export function nextSchedule(): Promise<ScheduleItem | null> {
-  return get<ScheduleItem | null>("/schedule/next");
+export function nextSchedule(): Promise<ScheduleOccurrence | null> {
+  return get<ScheduleOccurrence | null>("/schedule/next");
 }
 
 /** Record that the patient saw an occurrence (acknowledged/dismissed/snoozed). */
@@ -43,7 +43,7 @@ export function ackSchedule(
   occurrenceAt: string,
   response: AckResponse,
 ): Promise<ScheduleAck> {
-  return post<ScheduleAck>(`/schedule/${scheduleItemId}/ack`, {
+  return post<ScheduleAck>(`/schedule/${encodeURIComponent(scheduleItemId)}/ack`, {
     occurrence_at: occurrenceAt,
     response,
   });

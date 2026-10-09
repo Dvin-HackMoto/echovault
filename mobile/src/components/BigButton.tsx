@@ -16,11 +16,14 @@ import { theme as defaultTheme, type Theme } from "../theme";
 export interface BigButtonProps {
   label: string;
   onPress?: () => void;
-  /** Optional leading icon (any element — e.g. a vector icon or emoji Text). */
+  /** Optional leading icon: any element, or an emoji string (wrapped in Text). */
   icon?: React.ReactNode;
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "danger";
+  /** "secondary" is the calm, lower-emphasis style; "success" confirms. */
+  variant?: "primary" | "secondary" | "success" | "danger";
+  /** Extra description read by screen readers. */
+  hint?: string;
   /** Inject a scaled theme; falls back to the default 1.4 theme. */
   theme?: Theme;
 }
@@ -32,11 +35,15 @@ export default function BigButton({
   disabled = false,
   loading = false,
   variant = "primary",
+  hint,
   theme = defaultTheme,
 }: BigButtonProps) {
-  const bg = variant === "danger" ? theme.colors.danger : theme.colors.primary;
-  const fg =
-    variant === "danger" ? theme.colors.onDanger : theme.colors.onPrimary;
+  const { bg, fg } = {
+    primary: { bg: theme.colors.primary, fg: theme.colors.onPrimary },
+    secondary: { bg: theme.colors.secondary, fg: theme.colors.onSecondary },
+    success: { bg: theme.colors.success, fg: theme.colors.onPrimary },
+    danger: { bg: theme.colors.danger, fg: theme.colors.onDanger },
+  }[variant];
   const isDisabled = disabled || loading;
 
   return (
@@ -44,6 +51,7 @@ export default function BigButton({
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       accessibilityLabel={label}
+      accessibilityHint={hint}
       disabled={isDisabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -63,7 +71,17 @@ export default function BigButton({
       ) : (
         <View style={styles.content}>
           {icon ? (
-            <View style={{ marginRight: theme.spacing.sm }}>{icon}</View>
+            <View
+              style={{ marginRight: theme.spacing.sm }}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {typeof icon === "string" ? (
+                <Text style={{ fontSize: theme.fontSizes.button }}>{icon}</Text>
+              ) : (
+                icon
+              )}
+            </View>
           ) : null}
           <Text
             style={[styles.label, { color: fg, fontSize: theme.fontSizes.button }]}
@@ -90,5 +108,6 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: "700",
     textAlign: "center",
+    flexShrink: 1,
   },
 });

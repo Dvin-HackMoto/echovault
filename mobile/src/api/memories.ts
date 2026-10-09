@@ -11,6 +11,8 @@ export type MemoryInput = Partial<Omit<Memory, "id" | "created_at" | "updated_at
 export interface MemoryFilter {
   trust?: Trust;
   category?: Category;
+  /** ASSUMED: GET /memories accepts person_id as a filter. */
+  person_id?: string;
 }
 
 function queryString(filter?: MemoryFilter): string {
@@ -18,11 +20,24 @@ function queryString(filter?: MemoryFilter): string {
   const params: string[] = [];
   if (filter.trust) params.push(`trust=${encodeURIComponent(filter.trust)}`);
   if (filter.category) params.push(`category=${encodeURIComponent(filter.category)}`);
+  if (filter.person_id) params.push(`person_id=${encodeURIComponent(filter.person_id)}`);
   return params.length ? `?${params.join("&")}` : "";
 }
 
 export function listMemories(filter?: MemoryFilter): Promise<Memory[]> {
   return get<Memory[]>(`/memories${queryString(filter)}`);
+}
+
+/**
+ * Patient mode: verified, current memories about one person. The filter is a
+ * second guard: the patient never sees an unverified, conflicting, outdated or
+ * archived memory.
+ */
+export async function verifiedMemoriesAbout(personId: string): Promise<Memory[]> {
+  const memories = await listMemories({ trust: "verified", person_id: personId });
+  return memories.filter(
+    (memory) => memory.trust === "verified" && memory.validity !== "archived" && memory.person_id === personId,
+  );
 }
 
 export function getMemory(id: string): Promise<Memory> {

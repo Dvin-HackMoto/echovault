@@ -4,13 +4,27 @@
 
 import * as Speech from "expo-speech";
 
+import type { Language } from "../types";
+
 export interface SpeakOptions {
   /** BCP-47 language tag, e.g. "fil-PH" or "en-US". */
   language?: string;
   /** Speech rate (1.0 = normal). Slightly slower reads clearer for elders. */
   rate?: number;
   pitch?: number;
+  /** Called when speech ends for any reason: finished, stopped or failed. */
   onDone?: () => void;
+}
+
+/**
+ * Voice for the patient's profile language. Mixed "fil-en" uses the phone's
+ * default voice, which reads both acceptably; phones without a Filipino voice
+ * fall back to their default.
+ */
+export function voiceLanguage(language?: Language | null): string | undefined {
+  if (language === "en") return "en-US";
+  if (language === "fil") return "fil-PH";
+  return undefined;
 }
 
 /** Read text aloud. Interrupts any current speech first. */
@@ -21,6 +35,8 @@ export function speak(text: string, options: SpeakOptions = {}): void {
     rate: options.rate ?? 0.9,
     pitch: options.pitch,
     onDone: options.onDone,
+    onStopped: options.onDone,
+    onError: options.onDone,
   });
 }
 

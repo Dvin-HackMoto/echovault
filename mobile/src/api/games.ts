@@ -11,12 +11,19 @@ import type {
   TriviaQuestion,
 } from "../types";
 
+/** A round question; `photo_url` is set for photo games (ASSUMED). */
+export interface GameQuestion extends TriviaQuestion {
+  photo_url?: string | null;
+}
+
 /** The playable round the generators build from verified data. */
 export interface GameRound {
   activity: ActivityKind;
   topic?: string | null;
   difficulty: Difficulty;
-  questions: TriviaQuestion[];
+  questions: GameQuestion[];
+  /** ASSUMED: set, with no questions, when there is not enough verified data. */
+  message?: string | null;
 }
 
 /** Fetch a round for a game type. GET /games/{type}/round. */

@@ -17,11 +17,18 @@ export interface AssistantAnswer {
   intent?: string | null;
   people: Person[];
   memory_ids: string[];
+  /** ASSUMED: /assistant/voice also returns what it heard. */
+  transcript?: string;
 }
+
+// The hub may wait ~8 s for the local LLM before falling back, so allow longer.
+const ASK_TIMEOUT_MS = 20000;
+// Voice adds transcription (faster-whisper) on top.
+const VOICE_TIMEOUT_MS = 35000;
 
 /** Ask a text question. POST /assistant/ask {text}. */
 export function ask(text: string): Promise<AssistantAnswer> {
-  return post<AssistantAnswer>("/assistant/ask", { text });
+  return post<AssistantAnswer>("/assistant/ask", { text }, { timeoutMs: ASK_TIMEOUT_MS });
 }
 
 /**
@@ -29,5 +36,5 @@ export function ask(text: string): Promise<AssistantAnswer> {
  * the hub transcribes it (faster-whisper) and runs the same pipeline.
  */
 export function askVoice(audio: UploadFile): Promise<AssistantAnswer> {
-  return uploadFile<AssistantAnswer>("/assistant/voice", "audio", audio);
+  return uploadFile<AssistantAnswer>("/assistant/voice", "audio", audio, {}, VOICE_TIMEOUT_MS);
 }

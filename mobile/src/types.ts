@@ -144,6 +144,8 @@ export interface Person {
   nickname?: string | null;
   relationship: string;
   photo_path?: string | null;
+  /** Added by the endpoint: a URL the phone can load ("/photos/<photo_path>"). ASSUMED for /people. */
+  photo_url?: string | null;
   notes?: string | null;
   is_caregiver: number; // 0 | 1
   trust: Trust;
@@ -205,6 +207,22 @@ export interface ScheduleItem {
   updated_at: string;
 }
 
+/**
+ * One occurrence of a schedule item on a given day, as GET /schedule/today and
+ * GET /schedule/next return it (recurrence expanded server-side, Module 05).
+ * The row fields plus what the endpoint adds.
+ */
+export interface ScheduleOccurrence extends ScheduleItem {
+  person_name?: string | null;
+  person_relationship?: string | null;
+  person_photo_path?: string | null;
+  place_name?: string | null;
+  occurrence_at: string; // "YYYY-MM-DD HH:MM:SS", Manila time
+  ends_at: string | null;
+  remind_at: string;
+  ack: { response: AckResponse; responded_at: string } | null;
+}
+
 export interface ScheduleAck {
   id: string;
   schedule_item_id: string;
@@ -254,6 +272,19 @@ export interface MedicationLogWithMed extends MedicationLog {
   medication_dose: string;
 }
 
+/**
+ * A dose due today, as GET /medications/today returns it (Module 06): the log
+ * row plus the medicine it belongs to.
+ */
+export interface Dose extends MedicationLog {
+  name: string;
+  dose: string;
+  instructions: string | null;
+  photo_path?: string | null;
+  photo_url: string | null;
+  time_of_day: string; // "08:00"
+}
+
 // ──────────────────────────── games & trivia ──────────────────────────────
 
 export interface TriviaQuestion {
@@ -267,6 +298,15 @@ export interface TriviaQuestion {
   difficulty: Difficulty;
   source: TriviaSource;
   is_active: number; // 0 | 1
+}
+
+/**
+ * GET /trivia/next: a question, or null when a prompt is not allowed now.
+ * ASSUMED: `people` is added when the linked memory is about a person, so the
+ * card can offer "See photos".
+ */
+export interface TriviaPrompt extends TriviaQuestion {
+  people?: Person[];
 }
 
 export interface ActivityLog {

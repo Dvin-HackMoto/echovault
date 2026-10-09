@@ -8,7 +8,7 @@ module.exports = {
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
-      { tsconfig: { target: 'ES2020', module: 'commonjs', strict: true, esModuleInterop: true, resolveJsonModule: true } },
+      { tsconfig: { target: 'ES2020', module: 'commonjs', strict: true, esModuleInterop: true, resolveJsonModule: true, types: ['jest', 'node'] } },
     ],
   },
 };
