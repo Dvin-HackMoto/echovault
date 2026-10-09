@@ -4,19 +4,20 @@
 // Asks GET /trivia/next every trivia_frequency_min minutes while the app is
 // open. The hub decides whether a prompt is allowed (quiet hours,
 // appointments); the app also keeps it off screen during a medication card or
-// a game. Answering, opening photos or closing are all logged as activity
-// "trivia_prompt". Feedback is gentle and never a score.
+// a game. Answering, opening photos or closing are all reported to
+// POST /trivia/result, which logs activity "trivia_prompt". Only engagement is
+// sent (completed or skipped), never whether the answer was right. Feedback is
+// gentle and never a score.
 
 import { router, usePathname } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { postResult } from "../api/games";
-import { nextTrivia } from "../api/trivia";
+import { nextTrivia, postTriviaResult, type TriviaOutcome } from "../api/trivia";
 import BigButton from "../components/BigButton";
 import { DemoTag } from "../components/Notice";
 import { useTheme } from "../theme-context";
-import type { ActivityOutcome, TriviaPrompt } from "../types";
+import type { TriviaPrompt } from "../types";
 import { usePatient } from "./context";
 import { isRightAnswer, parseChoices, triviaAllowed } from "./logic";
 
@@ -57,18 +58,16 @@ export default function TriviaCard() {
     };
   }, [check, settings.trivia_frequency_min]);
 
-  function log(outcome: ActivityOutcome) {
+  function log(outcome: TriviaOutcome) {
     if (!prompt) return;
-    postResult({
-      activity: "trivia_prompt",
-      topic: prompt.topic,
-      question_ref: prompt.id,
+    postTriviaResult({
+      question_id: prompt.id,
       outcome,
       duration_sec: Math.round((Date.now() - shownAt.current) / 1000),
     }).catch(() => {});
   }
 
-  function close(outcome: ActivityOutcome, delayMs = 0) {
+  function close(outcome: TriviaOutcome, delayMs = 0) {
     log(outcome);
     setTimeout(() => setPrompt(null), delayMs);
   }
@@ -77,7 +76,7 @@ export default function TriviaCard() {
     if (!prompt) return;
     const right = isRightAnswer(choice, prompt.answer);
     setReply(right ? "That's right! 🌟" : `Good try! It's ${prompt.answer}.`);
-    close(right ? "correct" : "incorrect", 3000);
+    close("completed", 3000);
   }
 
   function seePhotos() {

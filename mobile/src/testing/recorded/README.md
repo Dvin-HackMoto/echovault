@@ -11,11 +11,15 @@ them as their data, and `contract.test.ts` checks the types in `src/hub.ts` agai
 | `medications.json` | `GET /medications` |
 | `patient.json` | `GET /patient` |
 | `writes.json` | `POST /schedule/{id}/ack` and `POST /medications/logs/{id}`, accepted and rejected |
+| `trivia.json` | `GET /trivia/next`, `POST /trivia/result` (accepted, then a rejected `correct`), and `GET /trivia/next` again |
 
 They came from one hub running the schedule router (`feature/05-schedule`), the
 medications router (`feature/06-medications`) and the settings router (`main`) on
 `main`'s schema and demo seed, plus Losartan (08:00, 20:00 daily) and Metformin
 (06:30 on MO,WE,FR,SA) added through `POST /medications`.
+
+`trivia.json` came from the trivia router (`feature/10-trivia-and-memory-prompts`) on the
+demo seed, with the hub clock at 2026-10-10 10:30.
 
 There is no people file: no branch has a people endpoint yet.
 

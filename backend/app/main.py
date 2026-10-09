@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.database.connection import migrate
 from app.database.seed import seed
+from app.features.trivia.loader import load_preloaded as load_trivia
 from app.middleware.dependencies import enforce_access_level
 
 FEATURES_DIR = Path(__file__).parent / "features"
@@ -61,6 +62,8 @@ async def lifespan(app: FastAPI):
     # migrate and seed are looked up at call time, so tests can patch app.main.migrate/seed
     _startup_step("create storage folders", lambda: config.PHOTO_DIR.mkdir(parents=True, exist_ok=True))
     _startup_step("migrate database", migrate)
+    # TRV-1: general trivia comes from assets/trivia.json on every start, demo mode or not
+    _startup_step("load preloaded trivia", load_trivia)
     if config.DEMO_MODE:
         _startup_step("seed demo data", seed)
     print(f"EchoVault hub ready. Phones connect to: http://{lan_ip()}:8000 (uvicorn's default port)")

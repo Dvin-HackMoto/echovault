@@ -208,6 +208,18 @@ export function createDemoHub(now: () => Date = () => new Date()) {
       return { ok: true };
     }],
     ["GET", /^\/trivia\/next$/, () => nextTrivia()],
+    // like the hub: engagement only, right or wrong is not accepted
+    ["POST", /^\/trivia\/result$/, (_m, body) => {
+      const asked = TRIVIA.find((t) => t.id === body?.question_id);
+      if (!asked) throw new DemoHubError(404, "Question not found");
+      if (!["completed", "skipped"].includes(body?.outcome)) throw new DemoHubError(422, "outcome must be one of completed, skipped");
+      const row = {
+        id: `act-${activity.length + 1}`, activity: "trivia_prompt", topic: asked.topic, question_ref: asked.id,
+        outcome: body.outcome, difficulty: 1, duration_sec: body.duration_sec ?? null, created_at: toStamp(now()),
+      };
+      activity.push(row);
+      return row;
+    }],
   ];
 
   return {

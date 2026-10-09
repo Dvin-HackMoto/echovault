@@ -1,0 +1,47 @@
+{
+  "next": {
+    "id": "seed-trivia-ana-flower",
+    "kind": "family",
+    "topic": "relationships",
+    "question": "Ana is your daughter. Do you remember her favorite flower?",
+    "answer": "Sunflowers",
+    "choices": "[\"Sunflowers\", \"Roses\", \"Sampaguita\"]",
+    "memory_id": "seed-mem-ana-flower",
+    "difficulty": 1,
+    "source": "caregiver",
+    "is_active": 1,
+    "people": [
+      {
+        "id": "seed-person-ana",
+        "name": "Ana Santos-Reyes",
+        "nickname": "Ana",
+        "relationship": "daughter",
+        "photo_path": "seed-ana.png",
+        "notes": "Your eldest. She lives with you and helps you every day.",
+        "is_caregiver": 1,
+        "trust": "verified",
+        "created_by": "seed-cg-ana",
+        "created_at": "2026-10-10 06:27:31",
+        "updated_at": "2026-10-10 06:27:31",
+        "photo_url": "/photos/seed-ana.png"
+      }
+    ]
+  },
+  "result": {
+    "id": "e8cfd4c3-12b2-4494-b209-1961a141ba25",
+    "activity": "trivia_prompt",
+    "topic": "relationships",
+    "question_ref": "seed-trivia-ana-flower",
+    "outcome": "completed",
+    "difficulty": 1,
+    "duration_sec": 9,
+    "created_at": "2026-10-10 10:30:00"
+  },
+  "next_after_result": null,
+  "result_rejected": {
+    "status": 422,
+    "body": {
+      "detail": "outcome must be one of completed, skipped"
+    }
+  }
+}
