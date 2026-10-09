@@ -11,6 +11,7 @@
 from fastapi import APIRouter, Depends
 
 from app.database.connection import get_db
+from app.features.medications import service as medications_service
 from app.middleware.dependencies import require_caregiver
 
 router = APIRouter(tags=["dashboard"])
@@ -19,6 +20,10 @@ router = APIRouter(tags=["dashboard"])
 @router.get("/dashboard")
 def get_dashboard(caregiver=Depends(require_caregiver), conn=Depends(get_db)):
     """Return everything the caregiver needs to review. Caregiver only."""
+
+    # MED-2: make sure today's doses exist as 'unconfirmed' logs, so a missed dose
+    # shows up here even if no phone has opened the medicine card today.
+    medications_service.generate_logs(conn)
 
     # unverified memories, including AI suggestions (source='ai_suggested')
     unverified_memories = [

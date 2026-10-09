@@ -32,10 +32,7 @@ Definition of Done:
 | `backend/app/features/schedule/router.py` | Endpoints below. Declares `/today` and `/next` before `/{id}` |
 | `backend/app/features/schedule/service.py` | Payload validation, recurrence expansion, `today()`, `next_occurrence()`, `acknowledge()` |
 | `backend/app/features/schedule/repository.py` | `schedule_items` / `schedule_acks` SQL. Items are joined with person and place names |
-| `backend/app/features/schedule/deps.py` | **The only place Schedule imports from other modules.** Uses the real name if it exists, otherwise the mock |
-| `backend/app/features/schedule/demo.py` | `seed_demo_schedule()`: Lola Nena's demo week, **kept permanently** for HUB-5 to call |
-| `backend/app/features/schedule/mock.py` | TEMPORARY stand-ins for HUB-1/2/4. Delete when integrated |
-| `backend/app/features/schedule/dev_app.py` | TEMPORARY standalone hub. Delete once `main.py` registers the router |
+| `backend/app/features/schedule/deps.py` | **The only place Schedule imports from other modules.** Imports the real HUB-1/2/4 names directly |
 | `backend/tests/test_schedule.py` | 22 tests covering every acceptance criterion below. They don't depend on the mocks |
 
 Run the tests from `backend/` with `py -m pytest tests/test_schedule.py`. `pytest` has been added to `requirements.txt`.
@@ -105,7 +102,9 @@ Hub Foundation and Auth are still placeholders. `deps.py` looks up each name bel
 | `get_db` | `app/database/connection.py` (HUB-2) | a FastAPI dependency that yields a `sqlite3` connection with `row_factory = sqlite3.Row`. Schedule calls `conn.commit()` itself | a separate `storage/schedule_mock.db` (built from the real `schema.sql` once it exists), pre-filled with the demo week |
 | `get_role`, `require_caregiver` | `app/middleware/dependencies.py` (HUB-4) | FastAPI dependencies that raise to block a request. Their return values are not used, so any shape is fine | `X-Role` checks only; `X-Caregiver-Id` is ignored |
 
-**Checklist to finish integration** (no Schedule code changes needed):
+> **Integrated on `main`.** The hub foundation is merged: `deps.py` imports the real names, `main.py` registers the router automatically, and `database/seed.py` seeds the demo week itself, so `mock.py`, `dev_app.py` and `demo.py` were deleted. `tests/test_schedule.py` runs against the real schema and role checks, and `tests/test_hub_integration.py` runs Schedule, Medications and the dashboard together on the full app. Run the whole hub with `py -m uvicorn app.main:app --host 0.0.0.0 --port 8000` (set `DEMO_MODE=true` for demo data). The checklist below is kept for history.
+
+**Checklist to finish integration** (done):
 
 1. **HUB-1, HUB-2, HUB-4:** define the names above. Schedule switches over automatically.
 2. **HUB-2:** make sure `schema.sql` contains `schedule_items` and `schedule_acks` exactly as in ARCHITECTURE.md.

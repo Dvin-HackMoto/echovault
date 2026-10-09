@@ -1,46 +1,28 @@
 # Schedule module (SCH-1..3). From backend/:  py -m pytest tests/test_schedule.py
 #
-# These tests do not depend on mock.py: they build their own in-memory database and
-# replace the role checks with header-only doubles, so they keep passing after the
-# real HUB-2 / HUB-4 code replaces the mocks.
+# These tests build their own in-memory database from the real schema.sql, add a real
+# caregiver row and send the same headers the phones send, so the real HUB-4 role
+# checks run. Only the database dependency is swapped for the in-memory one.
 
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
 
 import pytest
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.features.schedule import deps, service
-from app.features.schedule.demo import seed_demo_schedule
 from app.features.schedule.router import router
 
-CAREGIVER = {"X-Role": "caregiver"}
+CAREGIVER = {"X-Role": "caregiver", "X-Caregiver-Id": "cg-1"}
 PATIENT = {"X-Role": "patient"}
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "..", "app", "database", "schema.sql")
 
 
 def schema_sql():
     with open(SCHEMA_PATH, encoding="utf-8") as f:
-        real = f.read()
-    if "CREATE TABLE" in real.upper():
-        return real
-    from app.features.schedule.mock import FALLBACK_SCHEMA  # until HUB-2 writes schema.sql
-
-    return FALLBACK_SCHEMA
-
-
-def fake_get_role(x_role: str | None = Header(default=None)):
-    if x_role not in ("patient", "caregiver"):
-        raise HTTPException(401)
-    return x_role
-
-
-def fake_require_caregiver(x_role: str | None = Header(default=None)):
-    if fake_get_role(x_role) != "caregiver":
-        raise HTTPException(403)
-    return x_role
+        return f.read()
 
 
 @pytest.fixture
@@ -50,9 +32,13 @@ def conn():
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(schema_sql())
     conn.execute(
+        "INSERT INTO caregivers (id, name, access_level, pin_hash) VALUES ('cg-1', 'Test Caregiver', 'admin', 'x')"
+    )
+    conn.execute(
         "INSERT INTO people (id, name, relationship, trust) VALUES ('ana', 'Ana', 'daughter', 'verified')"
     )
     conn.execute("INSERT INTO places (id, name) VALUES ('church', 'Malolos Church')")
+    conn.commit()
     yield conn
     conn.close()
 
@@ -62,8 +48,6 @@ def client(conn):
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[deps.get_db] = lambda: conn
-    app.dependency_overrides[deps.get_role] = fake_get_role
-    app.dependency_overrides[deps.require_caregiver] = fake_require_caregiver
     return TestClient(app)
 
 
@@ -200,14 +184,6 @@ def test_occurrences_between_includes_running_items(conn):
     assert [o["title"] for o in window] == ["Nap"] and window[0]["is_quiet_period"] == 1
     late = datetime(2026, 10, 9, 17, 45)
     assert [o["title"] for o in service.occurrences_between(conn, late, late + timedelta(minutes=30))] == ["Dinner"]
-
-
-def test_demo_seed_runs_once(conn):
-    seed_demo_schedule(conn, person_id="ana", place_id="church")
-    count = conn.execute("SELECT COUNT(*) FROM schedule_items").fetchone()[0]
-    seed_demo_schedule(conn, person_id="ana", place_id="church")
-    assert count > 0 and conn.execute("SELECT COUNT(*) FROM schedule_items").fetchone()[0] == count
-    assert service.today(conn) and service.next_occurrence(conn) is not None
 
 
 def test_next_is_null_when_nothing_ahead(client):

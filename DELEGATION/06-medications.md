@@ -31,9 +31,7 @@ Definition of Done:
 | `backend/app/features/medications/router.py` | Endpoints below. Declares `/today`, `/next` and `/logs` before `/{id}` |
 | `backend/app/features/medications/service.py` | Validation, dose generation, confirmation rules, photo saving, helpers for other modules |
 | `backend/app/features/medications/repository.py` | SQL for `medications`, `medication_times` and `medication_logs` |
-| `backend/app/features/medications/deps.py` | **The only place Medications imports from other modules.** Uses the real name if it exists, otherwise the mock. Accepts both hub foundations |
-| `backend/app/features/medications/mock.py` | TEMPORARY stand-ins for HUB-1/2/4. Not used on `main` (every name exists there). Delete when no hub foundation needs it |
-| `backend/app/features/medications/dev_app.py` | Standalone hub for testing this module alone (it now also runs inside the real hub) |
+| `backend/app/features/medications/deps.py` | **The only place Medications imports from other modules.** Imports the real HUB-1/2/4 names directly |
 | `backend/app/main.py` | **Edited:** registers `medications_router` (main lists routers by hand) |
 | `backend/tests/test_medications.py` | 21 tests, each run against both connection styles, plus a check that the hub app serves `/medications` (43 in total). They don't depend on the mocks |
 
@@ -117,7 +115,9 @@ Two hub foundations exist: the minimal one already on `main` (from the Settings/
 | `/photos` static route | **missing** | present | `photo_url` returns 404 on `main` until HUB-3 adds the mount. Upload already works |
 | caregiver check on `POST /medications/logs/{id}` | — | — | done inside the module (active `caregivers` row), because that endpoint must also accept patients |
 
-`deps.py` only falls back to `mock.py` for a name that no foundation defines. On `main`, nothing falls back. Start the hub with `ECHOVAULT_ALLOW_MOCKS=0` and it refuses to start, naming the missing piece, if anything ever does. An error *inside* a real module is raised normally, never hidden behind mock data.
+> **Integrated on `main`.** The two hub foundations are now one, so `deps.py` imports the real names directly and `mock.py` / `dev_app.py` were deleted. `main.py` registers the router automatically and mounts `/photos`, and `GET /dashboard` now calls `generate_logs(conn)` first (step 1 below), so missed doses show up even if no phone opened the medicine card. `tests/test_hub_integration.py` covers this on the full app with the real seed. Run the whole hub with `py -m uvicorn app.main:app --host 0.0.0.0 --port 8000` (set `DEMO_MODE=true` for demo data; caregiver header `X-Caregiver-Id: seed-cg-ana`). The notes below are kept for history.
+
+`deps.py` used to fall back to `mock.py` for a name that no foundation defined. On `main`, nothing falls back. Start the hub with `ECHOVAULT_ALLOW_MOCKS=0` and it refuses to start, naming the missing piece, if anything ever does. An error *inside* a real module is raised normally, never hidden behind mock data.
 
 **Checked before this PR:**
 

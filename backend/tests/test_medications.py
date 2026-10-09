@@ -1,10 +1,9 @@
 # Medications module (MED-1..3). From backend/:  py -m pytest tests/test_medications.py
 #
-# These tests do not depend on mock.py: they build their own in-memory database, add a
-# real caregiver row and send the same headers the phones send, so they pass against
-# the mocks, the minimal hub on main, and feature/01-hub-foundation. Every test runs
-# twice: with an autocommit connection and with Python's default one, because the
-# two hub foundations use different modes and a missed commit would lose writes.
+# These tests build their own in-memory database from the real schema.sql, add a real
+# caregiver row and send the same headers the phones send, so the real HUB-4 role
+# checks run. Every test runs twice: with an autocommit connection (what the hub
+# uses) and with Python's default one, so a missed commit would show up as lost writes.
 
 import sqlite3
 from datetime import date, datetime
@@ -23,12 +22,7 @@ PATIENT = {"X-Role": "patient"}
 
 
 def schema_sql():
-    real = SCHEMA_PATH.read_text(encoding="utf-8")
-    if "CREATE TABLE" in real.upper():
-        return real
-    from app.features.medications.mock import FALLBACK_SCHEMA  # until HUB-2 writes schema.sql
-
-    return FALLBACK_SCHEMA
+    return SCHEMA_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture(params=[None, ""], ids=["autocommit", "default-commit"])
