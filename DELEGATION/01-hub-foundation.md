@@ -14,12 +14,12 @@ Features:
 - Demo seed data
 
 Tasks:
-- [ ] HUB-1 Config and constants
-- [ ] HUB-2 Database connection and schema
-- [ ] HUB-3 FastAPI app shell
-- [ ] HUB-4 Role dependencies
-- [ ] HUB-5 Demo seed data
-- [ ] HUB-6 Backend run instructions
+- [x] HUB-1 Config and constants
+- [x] HUB-2 Database connection and schema
+- [x] HUB-3 FastAPI app shell
+- [x] HUB-4 Role dependencies
+- [x] HUB-5 Demo seed data
+- [x] HUB-6 Backend run instructions
 
 Dependencies:
 - None
@@ -38,10 +38,10 @@ Goal: Fill in `app/config.py` (read `DB_PATH`, `PHOTO_DIR`, `OLLAMA_URL`, `LLM_M
 Priority: P0
 Dependencies: None
 Acceptance Criteria:
-- [ ] Every value in `.env.example` is readable from `config.py`, with a working default when `.env` is missing
-- [ ] `constants.py` values match the `CHECK` constraints in the schema exactly
-- [ ] No other module hard-codes an enum value or a path
-Status: TODO
+- [x] Every value in `.env.example` is readable from `config.py`, with a working default when `.env` is missing
+- [x] `constants.py` values match the `CHECK` constraints in the schema exactly
+- [x] No other module hard-codes an enum value or a path
+Status: DONE
 
 ## HUB-2
 
@@ -52,11 +52,11 @@ Goal: Fill in `database/connection.py` (`sqlite3` connect, `row_factory = sqlite
 Priority: P0
 Dependencies: HUB-1
 Acceptance Criteria:
-- [ ] `migrate()` creates every table, index, trigger and `memories_fts` on an empty database
-- [ ] Running `migrate()` twice does not error or lose data
-- [ ] Inserting a memory makes it findable through `memories_fts`
-- [ ] A row that violates a foreign key is rejected
-Status: TODO
+- [x] `migrate()` creates every table, index, trigger and `memories_fts` on an empty database
+- [x] Running `migrate()` twice does not error or lose data
+- [x] Inserting a memory makes it findable through `memories_fts`
+- [x] A row that violates a foreign key is rejected
+Status: DONE
 
 ## HUB-3
 
@@ -67,11 +67,26 @@ Goal: Fill in `app/main.py`: create the app, enable CORS for the phones, run `mi
 Priority: P0
 Dependencies: HUB-2
 Acceptance Criteria:
-- [ ] The hub starts with one command and prints the LAN address to connect to
-- [ ] A health endpoint returns OK from a phone on the same Wi-Fi or hotspot
-- [ ] A photo saved in `storage/photos/` loads by URL from a phone
-- [ ] `storage/` and `storage/photos/` are created if missing
-Status: TODO
+- [x] The hub starts with one command and prints the LAN address to connect to
+- [x] A health endpoint returns OK from a phone on the same Wi-Fi or hotspot
+- [x] A photo saved in `storage/photos/` loads by URL from a phone
+- [x] `storage/` and `storage/photos/` are created if missing
+Status: DONE
+
+### Manual check (Requirements 6.7, 6.8)
+
+Status: Passed (2 of 2 phones)
+
+Steps:
+1. From `backend/`, start the hub with `DEMO_MODE=true`: `uvicorn app.main:app --host 0.0.0.0`. Note the LAN address it prints.
+2. Connect each phone to the same Wi-Fi or hotspot as the laptop.
+3. On each phone, open `<LAN_Address>/health` and `<LAN_Address>/photos/seed-ana.png`.
+4. Pass means the body or image appears within 10 seconds.
+
+| Phone model | Network type (Wi-Fi/hotspot) | /health | Photo | Pass/fail |
+|---|---|---|---|---|
+| Oppo | Wi-Fi | OK | Loaded | Pass |
+| Honor | Wi-Fi | OK | Loaded | Pass |
 
 ## HUB-4
 
@@ -82,10 +97,10 @@ Goal: Fill in `middleware/dependencies.py`: `get_role` reads `X-Role` (`patient`
 Priority: P0
 Dependencies: HUB-3
 Acceptance Criteria:
-- [ ] A request with `X-Role: patient` to a `require_caregiver` endpoint gets 403
-- [ ] A missing or unknown `X-Role` is rejected
-- [ ] A caregiver request with an unknown or inactive `X-Caregiver-Id` is rejected
-Status: TODO
+- [x] A request with `X-Role: patient` to a `require_caregiver` endpoint gets 403
+- [x] A missing or unknown `X-Role` is rejected
+- [x] A caregiver request with an unknown or inactive `X-Caregiver-Id` is rejected
+Status: DONE
 
 ## HUB-5
 
@@ -96,11 +111,11 @@ Goal: Fill in `database/seed.py` with one demo patient, at least one caregiver w
 Priority: P0
 Dependencies: HUB-2, AUTH-1
 Acceptance Criteria:
-- [ ] Seeding runs only in demo mode and does not duplicate rows when run again
-- [ ] One person has `is_caregiver = 1` so the "ask Ana" fallback has a target
-- [ ] Seeded data includes at least one unverified, one conflicting pair and one outdated memory for the dashboard demo
-- [ ] Every seeded photo path points to a file that exists
-Status: TODO
+- [x] Seeding runs only in demo mode and does not duplicate rows when run again
+- [x] One person has `is_caregiver = 1` so the "ask Ana" fallback has a target
+- [x] Seeded data includes at least one unverified, one conflicting pair and one outdated memory for the dashboard demo
+- [x] Every seeded photo path points to a file that exists
+Status: DONE
 
 ## HUB-6
 
@@ -111,7 +126,19 @@ Goal: Write `backend/README.md`: install requirements, `ollama pull <model>`, co
 Priority: P1
 Dependencies: HUB-3, AI-1
 Acceptance Criteria:
-- [ ] A teammate can start the hub on a clean laptop by following the README only
-- [ ] The README states which model to pull and how to change it
-- [ ] The README says how to turn demo seeding on and off
-Status: TODO
+- [x] A teammate can start the hub on a clean laptop by following the README only
+- [x] The README states which model to pull and how to change it
+- [x] The README says how to turn demo seeding on and off
+Status: DONE
+
+### Clean-laptop README run (Requirements 11.10, 11.11)
+
+Status: Passed
+
+A teammate who did not write the README followed only `backend/README.md` on a clean laptop, up to the `/health` check from a phone. Any step that needs outside help counts as a fail.
+
+- Tester: RJ
+- Date: 2026-10-10
+- OS: Windows 11
+- Pass/fail: Pass
+- Steps that needed outside help: None

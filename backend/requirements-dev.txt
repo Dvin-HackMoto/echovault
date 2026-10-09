@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest
+hypothesis==6.168.5
