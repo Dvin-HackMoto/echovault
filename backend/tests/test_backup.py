@@ -13,7 +13,8 @@ import sqlite3
 import zipfile
 
 from app import config
-from app.database import connection, seed
+from app.database import connection
+from tests import demo_data as seed
 
 
 # ─────────────────────────── small helpers ───────────────────────────
@@ -311,5 +312,5 @@ def test_bak_rollback_on_mid_swap_failure(file_client, caregiver_headers):
     assert file_client.get("/settings", headers=caregiver_headers).status_code == 200
 
     # No dangling sidecars left behind.
-    assert not os.path.exists(config.DB_PATH + ".bak")
-    assert not os.path.exists(config.PHOTO_DIR + ".bak")
+    assert not os.path.exists(str(config.DB_PATH) + ".bak")
+    assert not os.path.exists(str(config.PHOTO_DIR) + ".bak")

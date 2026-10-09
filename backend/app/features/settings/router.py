@@ -116,7 +116,7 @@ def get_settings(identity=Depends(get_role), conn=Depends(get_db)):
 @router.put("/settings")
 def update_settings(
     payload: dict = Body(...),
-    caregiver_id=Depends(require_caregiver),
+    caregiver=Depends(require_caregiver),
     conn=Depends(get_db),
 ):
     """Validate the shape of each provided settings key, then upsert it.
@@ -170,7 +170,7 @@ def get_patient(identity=Depends(get_role), conn=Depends(get_db)):
 @router.put("/patient")
 def update_patient(
     payload: dict = Body(...),
-    caregiver_id=Depends(require_caregiver),
+    caregiver=Depends(require_caregiver),
     conn=Depends(get_db),
 ):
     """Upsert the single patient row (id = 1). Never creates a second row.

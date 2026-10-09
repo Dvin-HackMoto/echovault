@@ -17,7 +17,7 @@ router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/dashboard")
-def get_dashboard(caregiver_id=Depends(require_caregiver), conn=Depends(get_db)):
+def get_dashboard(caregiver=Depends(require_caregiver), conn=Depends(get_db)):
     """Return everything the caregiver needs to review. Caregiver only."""
 
     # unverified memories, including AI suggestions (source='ai_suggested')
