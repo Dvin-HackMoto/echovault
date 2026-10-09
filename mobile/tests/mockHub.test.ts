@@ -11,6 +11,9 @@ import { parseChoices } from "../src/patient/logic";
 import type { Dose, Memory, Person, ScheduleOccurrence, TriviaPrompt } from "../src/types";
 
 const NOON = () => new Date(2026, 9, 10, 12, 10);
+// the round shape backend/app/features/games/generators.py returns
+const ROUND_KEYS = ["activity", "available", "difficulty", "questions", "reason", "topic"];
+const QUESTION_KEYS = ["answer_id", "answer_label", "choice_style", "choices", "id", "photo_url", "prompt"];
 
 test("patient mode only receives verified people", async () => {
   const hub = createDemoHub(NOON);
@@ -61,24 +64,36 @@ test("assistant: who-is, schedule, medicine and no-data answers", async () => {
   assert.match(unknown.answer, /ask Ana/);
 });
 
-test("every game question has its answer among 2-3 choices (schema JSON string)", async () => {
+test("every game round has the hub's shape, with its answer among distinct choices", async () => {
   const hub = createDemoHub(NOON);
   for (const type of ["family_matching", "name_recall", "routine_recall", "event_recall", "memory_quiz"]) {
     const round = (await hub.handle("GET", `/games/${type}/round`)) as GameRound;
+    assert.deepEqual(Object.keys(round).sort(), ROUND_KEYS, type);
     assert.equal(round.activity, type);
-    assert.ok(round.questions.length > 0, type);
+    assert.equal(round.available, true, type);
+    assert.ok(round.questions.length > 0 && round.questions.length <= 3, type);
     for (const q of round.questions) {
-      assert.equal(typeof q.choices, "string", "choices are a JSON array string, as in trivia_questions");
-      const labels = parseChoices(q.choices);
-      assert.ok(labels.includes(q.answer), `${type}: ${q.question}`);
-      assert.ok(labels.length >= 2 && labels.length <= 3, `${type}: ${labels}`);
-      assert.equal(new Set(labels).size, labels.length, `${type}: duplicate choices`);
+      assert.deepEqual(Object.keys(q).sort(), QUESTION_KEYS, type);
+      const ids = q.choices.map((c) => c.id);
+      assert.ok(ids.includes(q.answer_id as string), `${type}: ${q.prompt}`);
+      assert.equal(q.choices.find((c) => c.id === q.answer_id)?.label, q.answer_label);
+      assert.ok(q.choices.length >= 2, `${type}: ${ids}`);
+      assert.equal(new Set(q.choices.map((c) => c.label)).size, q.choices.length, `${type}: duplicate choices`);
     }
   }
   const pictures = (await hub.handle("GET", "/games/picture_matching/round")) as GameRound;
-  assert.equal(pictures.questions.length, 0);
-  assert.ok(pictures.message);
+  assert.deepEqual([pictures.available, pictures.reason, pictures.questions.length], [false, "not_enough_data", 0]);
   await assert.rejects(hub.handle("GET", "/games/chess/round"), { status: 404 });
+});
+
+test("a game result is one engagement row, like the hub", async () => {
+  const hub = createDemoHub(NOON);
+  const row = (await hub.handle("POST", "/games/result", { activity: "name_recall", outcome: "stopped", duration_sec: 40 })) as {
+    activity: string; outcome: string;
+  };
+  assert.deepEqual([row.activity, row.outcome], ["name_recall", "stopped"]);
+  await assert.rejects(hub.handle("POST", "/games/result", { activity: "trivia_prompt", outcome: "completed" }), { status: 422 });
+  await assert.rejects(hub.handle("POST", "/games/result", { activity: "name_recall", outcome: "won" }), { status: 422 });
 });
 
 test("trivia rotates and links a person for See photos", async () => {

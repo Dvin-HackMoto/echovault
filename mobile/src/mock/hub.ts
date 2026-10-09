@@ -8,17 +8,17 @@
 // unit-tested in tests/mockHub.test.ts.
 
 import type { AssistantAnswer } from "../api/assistant";
-import type { GameQuestion, GameRound } from "../api/games";
+// types only: api/games imports api/client, which creates this demo hub when it loads
+import type { GameChoice, GameQuestion, GameRound, GameType } from "../api/games";
 import { clockLabel, fromStamp, toStamp } from "../time";
 import type {
-  ActivityKind,
   AckResponse,
   Difficulty,
   Dose,
+  GameTopic,
   Person,
   ScheduleKind,
   ScheduleOccurrence,
-  TriviaKind,
   TriviaPrompt,
 } from "../types";
 import { DAY, MEDICINES, MEMORIES, PEOPLE, PROFILE, QUIZ, SETTINGS, TRIVIA } from "./data";
@@ -36,7 +36,7 @@ export class DemoHubError extends Error {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Handler = (match: RegExpMatchArray, body: any, query: URLSearchParams) => unknown;
 
-const GAME_TYPES: ActivityKind[] = [
+const GAME_TYPES: readonly GameType[] = [
   "family_matching", "name_recall", "event_recall", "routine_recall", "picture_matching", "memory_quiz",
 ];
 
@@ -119,42 +119,57 @@ export function createDemoHub(now: () => Date = () => new Date()) {
     );
   }
 
-  function question(id: string, kind: TriviaKind, text: string, right: string, choices: string[], extra: Partial<GameQuestion> = {}): GameQuestion {
+  // Same round shape as backend/app/features/games/generators.py: choices are
+  // {id, label, photo_url}, choices per question = difficulty + 1 (at least 2).
+  const choiceCount = Math.max(2, difficulty + 1);
+  const choice = (id: string, label: string, photoUrl: string | null = null): GameChoice => ({ id, label, photo_url: photoUrl });
+
+  function question(id: string, prompt: string, right: GameChoice, pool: GameChoice[], i: number,
+    extra: Partial<GameQuestion> = {}): GameQuestion {
+    // the right answer plus others, in a stable order that is not always "first"
+    const others = pool.filter((c) => c.id !== right.id && c.label !== right.label);
+    const k = i % Math.max(others.length, 1);
+    const wrong = [...others.slice(k), ...others.slice(0, k)].slice(0, choiceCount - 1);
+    const choices = [right, ...wrong].sort((a, b) => a.label.localeCompare(b.label));
     return {
-      id, kind, topic: null, question: text, answer: right, choices: JSON.stringify(choices),
-      memory_id: null, difficulty, source: "generated", is_active: 1, ...extra,
+      id, prompt, photo_url: null, choice_style: "text", choices,
+      answer_id: right.id, answer_label: right.label, ...extra,
     };
   }
 
-  function gameRound(type: ActivityKind): GameRound {
-    const base = { activity: type, topic: null, difficulty };
+  function gameRound(type: GameType): GameRound {
+    const base = { activity: type, difficulty, available: true, reason: null };
     const family = verified().filter((p) => p.relationship !== "doctor").slice(0, 4);
-    // the right answer plus two others, in a stable order that is not always "first"
-    const pick = (right: string, pool: string[], i: number) => {
-      const others = pool.filter((x) => x !== right);
-      return [...new Set([right, others[i % others.length], others[(i + 1) % others.length]])].sort();
-    };
+    const name = (p: Person) => p.nickname ?? p.name;
+    let topic: GameTopic | null = null;
     let questions: GameQuestion[] = [];
     if (type === "family_matching") {
-      const names = family.map((p) => p.nickname ?? p.name);
-      questions = family.map((p, i) =>
-        question(p.id, "family", `Which one is your ${p.relationship}?`, p.nickname ?? p.name, pick(p.nickname ?? p.name, names, i)));
+      topic = "relationships";
+      const pool = family.map((p) => choice(p.id, name(p), p.photo_url ?? null));
+      questions = family.slice(0, 3).map((p, i) =>
+        question(p.id, `Which one is your ${p.relationship}?`, pool[i], pool, i, { choice_style: "photo" }));
     } else if (type === "name_recall") {
-      const relations = family.map((p) => `My ${p.relationship}`);
-      questions = family.map((p, i) =>
-        question(p.id, "family", `Who is ${p.nickname ?? p.name}?`, `My ${p.relationship}`, pick(`My ${p.relationship}`, relations, i), { photo_url: p.photo_url ?? null }));
+      topic = "relationships";
+      const pool = family.map((p) => choice(p.id, `Your ${p.relationship}`));
+      questions = family.slice(0, 3).map((p, i) =>
+        question(p.id, "Who is this person to you?", pool[i], pool, i, { photo_url: p.photo_url ?? null }));
     } else if (type === "routine_recall") {
-      const steps = DAY.map((d) => d.title as string);
-      questions = steps.slice(0, 4).map((title, i) =>
-        question(DAY[i].id, "routine", `What usually comes after ${title}?`, steps[i + 1], pick(steps[i + 1], steps.filter((s) => s !== title), i)));
+      topic = "routines";
+      const pool = DAY.map((d) => choice(d.id, d.title));
+      questions = DAY.slice(0, 3).map((d, i) =>
+        question(`${d.id}>${DAY[i + 1].id}`, `After ${d.title}, what comes next?`, pool[i + 1],
+          pool.filter((c) => c.id !== d.id), i));
     } else if (type === "event_recall" || type === "memory_quiz") {
-      questions = QUIZ.map((q) => question(q.id, "personal", q.question, q.answer, [...q.choices], { memory_id: q.memory }));
-    } else if (type === "picture_matching") {
-      return { ...base, questions: [], message: "There are no photos saved for this game yet. Ana can add some." };
+      topic = type === "event_recall" ? "recent_events" : null;
+      questions = QUIZ.map((q, i) => {
+        const pool = q.choices.map((c, n) => choice(`${q.id}:${n}`, c));
+        return question(q.id, q.question, pool.find((c) => c.label === q.answer)!, pool, i);
+      });
     } else {
-      throw new DemoHubError(404, "Unknown game");
+      // picture_matching: the demo has no place or event photos, like the demo seed
+      return { ...base, topic: null, available: false, reason: "not_enough_data", questions: [] };
     }
-    return { ...base, questions };
+    return { ...base, topic, questions };
   }
 
   function nextTrivia(): TriviaPrompt | null {
@@ -200,12 +215,22 @@ export function createDemoHub(now: () => Date = () => new Date()) {
       return dosesToday().find((d) => d.id === dose.id);
     }],
     ["GET", /^\/games\/([^/]+)\/round$/, ([, type]) => {
-      if (!GAME_TYPES.includes(type as ActivityKind)) throw new DemoHubError(404, "Unknown game");
-      return gameRound(type as ActivityKind);
+      if (!GAME_TYPES.includes(type as GameType)) throw new DemoHubError(404, "Unknown game");
+      return gameRound(type as GameType);
     }],
+    // like the hub: one engagement row per round; trivia prompts are logged by /trivia/result
     ["POST", /^\/games\/result$/, (_m, body) => {
-      activity.push(body);
-      return { ok: true };
+      if (!GAME_TYPES.includes(body?.activity)) throw new DemoHubError(422, "activity must be a game type");
+      if (!["completed", "correct", "incorrect", "skipped", "stopped"].includes(body?.outcome)) {
+        throw new DemoHubError(422, "bad outcome");
+      }
+      const row = {
+        id: `act-${activity.length + 1}`, activity: body.activity, topic: body.topic ?? null,
+        question_ref: body.question_ref ?? null, outcome: body.outcome, difficulty: body.difficulty ?? null,
+        duration_sec: body.duration_sec ?? null, created_at: toStamp(now()),
+      };
+      activity.push(row);
+      return row;
     }],
     ["GET", /^\/trivia\/next$/, () => nextTrivia()],
     // like the hub: engagement only, right or wrong is not accepted

@@ -97,8 +97,8 @@ The app calls these exact paths. **ON MAIN** = already served by `main` or a pus
 | Ask | `POST /assistant/ask {text}` | ASSUMED (AST-4) | `{answer, people[], memory_ids, answer_mode}` (people with `photo_url`) |
 | Ask (voice) | `POST /assistant/voice` multipart **field `audio`** (m4a) | ASSUMED (AST-5) | same as ask, plus **`transcript`** |
 | Medication card | `GET /medications/today`, `POST /medications/logs/{id} {status}` | `feature/06-medications` | dose rows with `name`, `dose`, `instructions`, `photo_url`, `due_at`, `status` |
-| Games | `GET /games/{type}/round` | ASSUMED (GAM-2) | the foundation's `GameRound`: `{activity, topic, difficulty, questions: TriviaQuestion[], message?}`. Each question uses `question`, `answer`, `choices` (JSON array string as in `trivia_questions`, or null for "Show the answer") and optional `photo_url`. No questions plus a `message` = "not enough data" |
-| Games, trivia card | `POST /games/result` | ASSUMED (GAM-3) | `{activity, topic, question_ref, outcome, difficulty, duration_sec}`. **Trivia outcomes use the same endpoint with `activity: "trivia_prompt"`**, since both write `activity_log` |
+| Games | `GET /games/{type}/round` | `feature/09-memory-games` (merged) | `GameRound` in `src/api/games.ts`: `{activity, topic, difficulty, available, reason, questions[]}`. Each question has `prompt`, `photo_url`, `choice_style` (`photo` or `text`), `choices[{id, label, photo_url}]` (empty = "Show the answer"), `answer_id`, `answer_label`. `available: false` with `reason` `not_enough_data` or `topic_not_selected` instead of questions |
+| Games | `POST /games/result` | `feature/09-memory-games` (merged) | `{activity, topic, outcome, difficulty, duration_sec}`, **one row per round**. `trivia_prompt` is rejected here; the trivia card uses `POST /trivia/result` |
 | Trivia card | `GET /trivia/next` | ASSUMED (TRV-2) | a `trivia_questions` row (`choices` as a JSON array string) or `null`, plus optional **`people[]`** for "See photos" |
 
 ## Changes to the Mobile Foundation
@@ -141,7 +141,8 @@ Not touched otherwise: `src/cache.ts`, `src/reminders.ts`, `src/hub.ts`, `src/hu
 - **A dose shows on the card for 3 hours after its time.** Later than that, the caregiver dashboard follows up (overdue doses), not the patient's screen.
 - **Simplified (caregiver-managed) mode** hides Games and shows 2 upcoming items and 2 familiar people instead of 3 and 4.
 - **The first trivia check is 30 seconds after the app opens**, then every `trivia_frequency_min`. The hub still decides whether a prompt is allowed (quiet hours, appointments). The app also holds it back while a medication card or a game is on screen.
-- **Games log one result per question** (`correct` / `incorrect` / `skipped`), and `stopped` when the patient stops. Feedback is encouraging both ways, and no score or count of right answers is ever shown.
+- **Games log one result per round** (changed when Memory Games was merged): `completed` when the patient reaches the end having answered something, `skipped` when every question was skipped, `stopped` when the patient leaves with Stop. Right or wrong is never sent, so the dashboard's played/skipped counts are per round. Feedback is encouraging both ways, and no score or count of right answers is ever shown.
+- **Photo games show photo choices.** When a question's `choice_style` is `photo` (family matching), the choices are tappable photos, with the name as the screen-reader label.
 - **Read-aloud** uses the phone's default voice for `fil-en`, `en-US` for `en`, and `fil-PH` for `fil` (phones without a Filipino voice use their default).
 - **Once Patient is chosen, the app opens straight to the home screen.** A setup screen on every launch would confuse the patient.
 

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { roundOutcome, unavailableMessage } from "../src/patient/games";
 import { comingUp, dueDose, isForDay, isRightAnswer, parseChoices, timeState, triviaAllowed } from "../src/patient/logic";
 import type { Dose, ScheduleOccurrence } from "../src/types";
 
@@ -78,4 +79,15 @@ test("trivia waits for medication cards and games", () => {
   assert.equal(triviaAllowed("/home", false), true);
   assert.equal(triviaAllowed("/home", true), false);
   assert.equal(triviaAllowed("/games/name_recall", false), false);
+});
+
+test("a finished round is logged once: completed if anything was answered, else skipped", () => {
+  assert.equal(roundOutcome(2), "completed");
+  assert.equal(roundOutcome(0), "skipped");
+});
+
+test("an unplayable round explains itself without blaming the patient", () => {
+  assert.match(unavailableMessage("topic_not_selected"), /caregiver can turn it on/);
+  assert.match(unavailableMessage("not_enough_data"), /not enough saved/);
+  assert.match(unavailableMessage(null), /not enough saved/);
 });

@@ -1,20 +1,22 @@
-// EchoVault mobile — one round player for every game type (PAT-7).
-// Each answered, skipped or stopped question is posted to /games/result
-// (activity log). Feedback is encouraging for right and wrong answers; nothing
-// is scored or graded, and the result is never shown as a number.
+// EchoVault mobile — one round player for every game type (PAT-7, GAM-1..3).
+// Every game type returns the same round (src/api/games.ts), so one player handles all.
+// Feedback is encouraging for right and wrong answers; nothing is scored or graded.
+// One result per round goes to /games/result (activity log, engagement only):
+//   completed  the patient reached the end and answered at least one question
+//   skipped    the patient reached the end but skipped every question
+//   stopped    the patient left with Stop before the end
 
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 
 import { photoUri } from "../../../src/api/client";
-import { getRound, postResult, type GameRound } from "../../../src/api/games";
+import { getRound, postResult, type GameChoice, type GameRound } from "../../../src/api/games";
 import BigButton from "../../../src/components/BigButton";
 import { DemoTag, Notice } from "../../../src/components/Notice";
 import { hubMessage } from "../../../src/patient/cached";
 import { usePatient } from "../../../src/patient/context";
-import { GAMES, isGameType } from "../../../src/patient/games";
-import { isRightAnswer, parseChoices } from "../../../src/patient/logic";
+import { GAMES, isGameType, roundOutcome, unavailableMessage } from "../../../src/patient/games";
 import { useTheme } from "../../../src/theme-context";
 import type { ActivityOutcome } from "../../../src/types";
 
@@ -31,7 +33,9 @@ export default function PlayGame() {
   const [index, setIndex] = useState(0);
   const [feedback, setFeedback] = useState<{ right: boolean; text: string } | null>(null);
   const [finished, setFinished] = useState(false);
-  const shownAt = useRef(Date.now());
+  const startedAt = useRef(Date.now());
+  const answered = useRef(0);
+  const logged = useRef(false);
 
   const load = useCallback(async () => {
     setRound(null);
@@ -39,13 +43,15 @@ export default function PlayGame() {
     setIndex(0);
     setFeedback(null);
     setFinished(false);
+    answered.current = 0;
+    logged.current = false;
     if (!isGameType(type)) {
       setFailure("That game does not exist.");
       return;
     }
     try {
       setRound(await getRound(type));
-      shownAt.current = Date.now();
+      startedAt.current = Date.now();
     } catch (e) {
       setFailure(`${hubMessage(e)} Please try again later.`);
     }
@@ -55,45 +61,46 @@ export default function PlayGame() {
     load();
   }, [load]);
 
-  const question = round?.questions[index];
-  const choices = question ? parseChoices(question.choices) : [];
-  const photo = question ? photoUri(hubUrl, question.photo_url) : null;
+  const playable = round?.available ? round.questions : [];
+  const question = playable[index];
+  const promptPhoto = question ? photoUri(hubUrl, question.photo_url) : null;
 
+  /** One row per round; never twice for the same round. */
   function log(outcome: ActivityOutcome) {
-    if (!round) return;
+    if (!round || !round.available || logged.current) return;
+    logged.current = true;
     postResult({
       activity: round.activity,
       topic: round.topic,
-      question_ref: question?.id,
       outcome,
       difficulty: round.difficulty,
-      duration_sec: Math.round((Date.now() - shownAt.current) / 1000),
+      duration_sec: Math.round((Date.now() - startedAt.current) / 1000),
     }).catch(() => {}); // a lost log entry must never interrupt the game
   }
 
   function next() {
     setFeedback(null);
-    shownAt.current = Date.now();
-    if (round && index + 1 < round.questions.length) setIndex(index + 1);
-    else setFinished(true);
+    if (index + 1 < playable.length) {
+      setIndex(index + 1);
+    } else {
+      setFinished(true);
+      log(roundOutcome(answered.current));
+    }
   }
 
-  function choose(label: string) {
+  function choose(choice: GameChoice) {
     if (!question || feedback) return;
-    const right = isRightAnswer(label, question.answer);
-    log(right ? "correct" : "incorrect");
-    setFeedback(right ? { right, text: PRAISE[index % PRAISE.length] } : { right, text: `Good try! It's ${question.answer}.` });
+    answered.current += 1;
+    const right = choice.id === question.answer_id;
+    setFeedback(right
+      ? { right, text: PRAISE[index % PRAISE.length] }
+      : { right, text: `Good try! It's ${question.answer_label}.` });
   }
 
   function reveal() {
     if (!question || feedback) return;
-    log("completed");
-    setFeedback({ right: true, text: question.answer });
-  }
-
-  function skip() {
-    log("skipped");
-    next();
+    answered.current += 1;
+    setFeedback({ right: true, text: question.answer_label });
   }
 
   function stop() {
@@ -109,10 +116,8 @@ export default function PlayGame() {
         {!round && !failure ? <ActivityIndicator size="large" style={{ marginTop: spacing.xl }} /> : null}
         {failure ? <Notice tone="warning" text={failure} /> : null}
 
-        {round && round.questions.length === 0 ? (
-          <Text style={{ fontSize: fontSizes.button, color: colors.fg }}>
-            {round.message ?? "There is not enough saved yet to play this game. Ask your caregiver to add more."}
-          </Text>
+        {round && !playable.length ? (
+          <Text style={{ fontSize: fontSizes.button, color: colors.fg }}>{unavailableMessage(round.reason)}</Text>
         ) : null}
 
         {finished ? (
@@ -126,17 +131,17 @@ export default function PlayGame() {
         {question && !finished ? (
           <>
             <Text style={{ fontSize: fontSizes.body, color: colors.muted }}>
-              Question {index + 1} of {round?.questions.length}
+              Question {index + 1} of {playable.length}
             </Text>
-            {photo ? (
+            {promptPhoto ? (
               <Image
-                source={{ uri: photo }}
+                source={{ uri: promptPhoto }}
                 style={{ width: "100%", aspectRatio: 1, borderRadius: theme.radii.lg, backgroundColor: colors.card }}
                 accessibilityLabel="A photo for this question"
               />
             ) : null}
             <Text style={{ fontSize: fontSizes.title, fontWeight: "700", color: colors.fg }} accessibilityRole="header">
-              {question.question}
+              {question.prompt}
             </Text>
             {feedback ? (
               <View
@@ -151,10 +156,47 @@ export default function PlayGame() {
                   {feedback.text}
                 </Text>
               </View>
-            ) : choices.length ? (
-              choices.map((c) => <BigButton key={c} label={c} variant="secondary" onPress={() => choose(c)} theme={theme} />)
-            ) : (
+            ) : !question.choices.length ? (
               <BigButton label="Show the answer" variant="secondary" onPress={reveal} theme={theme} />
+            ) : question.choice_style === "photo" ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
+                {question.choices.map((c) => {
+                  const uri = photoUri(hubUrl, c.photo_url);
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => choose(c)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Photo of ${c.label}`}
+                      style={({ pressed }) => ({
+                        width: "47%",
+                        aspectRatio: 1,
+                        borderRadius: theme.radii.lg,
+                        borderWidth: 2,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        overflow: "hidden",
+                        opacity: pressed ? 0.8 : 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      })}
+                    >
+                      {uri ? (
+                        <Image source={{ uri }} style={{ width: "100%", height: "100%" }} accessibilityIgnoresInvertColors />
+                      ) : (
+                        // no photo on this device: fall back to the name so the choice is still usable
+                        <Text style={{ fontSize: fontSizes.button, color: colors.fg, textAlign: "center", padding: spacing.sm }}>
+                          {c.label}
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              question.choices.map((c) => (
+                <BigButton key={c.id} label={c.label} variant="secondary" onPress={() => choose(c)} theme={theme} />
+              ))
             )}
             {feedback ? <BigButton label="Next" onPress={next} theme={theme} /> : null}
           </>
@@ -174,7 +216,7 @@ export default function PlayGame() {
       >
         {question && !finished && !feedback ? (
           <View style={{ flex: 1 }}>
-            <BigButton label="Skip" variant="secondary" onPress={skip} theme={theme} />
+            <BigButton label="Skip" variant="secondary" onPress={next} theme={theme} />
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
