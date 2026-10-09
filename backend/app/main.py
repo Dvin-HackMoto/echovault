@@ -1,83 +1,30 @@
-# FastAPI app, CORS, registers routers, runs migrate() on startup
-import importlib
-import socket
-import sys
-from collections.abc import Callable
-from contextlib import asynccontextmanager
-from pathlib import Path
+"""EchoVault hub FastAPI application (minimal).
 
-from fastapi import APIRouter, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+Runs the idempotent migration on startup and registers the Module 11 routers
+(settings and dashboard). No Ollama/Whisper/static-photo wiring here — that is
+added by other modules.
+"""
+
+from fastapi import FastAPI
 
 from app import config
-from app.database.connection import migrate
-from app.database.seed import seed
+from app.database import connection
+from app.features.backup.router import router as backup_router
+from app.features.dashboard.router import router as dashboard_router
+from app.features.settings.router import router as settings_router
 
-FEATURES_DIR = Path(__file__).parent / "features"
+app = FastAPI(title="EchoVault Hub")
 
 
-def lan_ip() -> str:
-    # a UDP "connect" sends nothing; it only asks the OS which interface it would use
+@app.on_event("startup")
+def _startup():
+    conn = connection.connect(config.DB_PATH)
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.connect(("10.255.255.255", 1))
-            return sock.getsockname()[0]
-    except OSError:
-        pass
-    try:
-        return socket.gethostbyname(socket.gethostname())
-    except OSError:
-        return "127.0.0.1"
+        connection.migrate(conn)
+    finally:
+        conn.close()
 
 
-def register_feature_routers(
-    app: FastAPI, features_dir: Path = FEATURES_DIR, package: str = "app.features"
-) -> list[str]:
-    # every features/<name>/router.py that defines `router = APIRouter(...)` is included;
-    # placeholder files without one are skipped, import errors are not swallowed
-    registered = []
-    for folder in sorted(p for p in features_dir.iterdir() if (p / "router.py").is_file()):
-        module = importlib.import_module(f"{package}.{folder.name}.router")
-        router = getattr(module, "router", None)
-        if isinstance(router, APIRouter):
-            app.include_router(router)
-            registered.append(folder.name)
-    return registered
-
-
-def _startup_step(name: str, action: Callable[[], object]) -> None:
-    # names the failed step on stderr, then re-raises so uvicorn aborts startup
-    try:
-        action()
-    except Exception as error:
-        print(f"EchoVault hub failed to start: {name}: {error}", file=sys.stderr)
-        raise
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # migrate and seed are looked up at call time, so tests can patch app.main.migrate/seed
-    _startup_step("create storage folders", lambda: config.PHOTO_DIR.mkdir(parents=True, exist_ok=True))
-    _startup_step("migrate database", migrate)
-    if config.DEMO_MODE:
-        _startup_step("seed demo data", seed)
-    print(f"EchoVault hub ready. Phones connect to: http://{lan_ip()}:8000 (uvicorn's default port)")
-    yield
-
-
-def create_app() -> FastAPI:
-    app = FastAPI(title="EchoVault Hub", lifespan=lifespan)
-    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-    @app.get("/health")
-    def health() -> dict:
-        return {"status": "ok"}
-
-    register_feature_routers(app)
-    # photo_path in the DB is a file name inside PHOTO_DIR; its URL is /photos/<photo_path>
-    app.mount("/photos", StaticFiles(directory=config.PHOTO_DIR, check_dir=False), name="photos")
-    return app
-
-
-app = create_app()
+app.include_router(settings_router)
+app.include_router(dashboard_router)
+app.include_router(backup_router)

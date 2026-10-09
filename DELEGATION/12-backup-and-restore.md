@@ -11,8 +11,8 @@ Features:
 - Optional password protection
 
 Tasks:
-- [ ] BKP-1 Export
-- [ ] BKP-2 Import
+- [x] BKP-1 Export
+- [x] BKP-2 Import
 
 Dependencies:
 - Hub Foundation
@@ -31,11 +31,11 @@ Goal: Fill in `features/backup/router.py` with `GET /backup/export` returning a 
 Priority: P2
 Dependencies: HUB-4
 Acceptance Criteria:
-- [ ] The zip contains a consistent copy of the database and every photo
-- [ ] The file name includes the export date
-- [ ] Caregiver only
+- [x] The zip contains a consistent copy of the database and every photo
+- [x] The file name includes the export date
+- [x] Caregiver only
 - [ ] Optional password protection, if time allows
-Status: TODO
+Status: DONE
 
 ## BKP-2
 
@@ -46,8 +46,8 @@ Goal: Add `POST /backup/import` that replaces the database and photos after conf
 Priority: P2
 Dependencies: BKP-1
 Acceptance Criteria:
-- [ ] The request must carry an explicit confirmation or it is rejected
-- [ ] A file that is not a valid EchoVault backup is rejected and the current data is untouched
-- [ ] The previous database is kept as a copy until the import succeeds
-- [ ] The hub serves the restored data without a restart
-Status: TODO
+- [x] The request must carry an explicit confirmation or it is rejected
+- [x] A file that is not a valid EchoVault backup is rejected and the current data is untouched
+- [x] The previous database is kept as a copy until the import succeeds
+- [x] The hub serves the restored data without a restart
+Status: DONE

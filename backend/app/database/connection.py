@@ -1,34 +1,40 @@
-# sqlite3 connect, row_factory=sqlite3.Row, get_db dependency
+"""SQLite connection helpers and idempotent migration.
+
+Every connection enables foreign keys and uses sqlite3.Row so repositories can
+return ``dict(row)``. ``migrate`` applies schema.sql (all statements use
+IF NOT EXISTS, so re-running is safe).
+"""
+
+import os
 import sqlite3
-from pathlib import Path
 
 from app import config
 
-SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+_SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 
-def connect() -> sqlite3.Connection:
-    config.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # isolation_level=None: every statement is committed as it runs, so a write is
-    # visible to the other phone as soon as the request returns. Wrap multi-statement
-    # changes in conn.execute("BEGIN") ... conn.execute("COMMIT") when they must be atomic.
-    conn = sqlite3.connect(config.DB_PATH, isolation_level=None, check_same_thread=False)
+def connect(db_path):
+    """Open a SQLite connection with Row factory and foreign keys enabled."""
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
+def migrate(conn):
+    """Apply schema.sql. Idempotent — safe to run on every startup."""
+    with open(_SCHEMA_PATH, "r", encoding="utf-8") as f:
+        conn.executescript(f.read())
+    conn.commit()
+
+
 def get_db():
-    conn = connect()
+    """FastAPI dependency: yield a connection to config.DB_PATH, then close it."""
+    parent = os.path.dirname(config.DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    conn = connect(config.DB_PATH)
     try:
         yield conn
-    finally:
-        conn.close()
-
-
-def migrate() -> None:
-    conn = connect()
-    try:
-        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     finally:
         conn.close()
