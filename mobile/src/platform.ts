@@ -5,11 +5,15 @@
 //
 // The app-wide instance lives in src/offline.ts (hub address from api/client.ts), and
 // app/(patient)/_layout.tsx calls prepareNotifications() and offline.reminders.start().
+//
+// Expo Go on Android (SDK 53+) throws as soon as expo-notifications is loaded, so it is
+// loaded only where it works (a development build, or iOS). Without it, reminders still
+// show in the in-app ReminderBanner; only the system notifications are missing.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isRunningInExpoGo } from 'expo';
 // Since Expo SDK 54 these functions live in 'expo-file-system/legacy'.
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { createCache } from './cache';
@@ -19,10 +23,27 @@ import { createQueue } from './queue';
 import { createReminders } from './reminders';
 
 const CHANNEL = 'reminders';
+
+type NotificationsModule = typeof import('expo-notifications');
+let notificationsModule: NotificationsModule | null | undefined;
+
+/** expo-notifications, or null where it cannot run (Expo Go on Android). */
+function notifications(): NotificationsModule | null {
+  if (notificationsModule === undefined) {
+    notificationsModule =
+      Platform.OS === 'android' && isRunningInExpoGo()
+        ? null
+        : // eslint-disable-next-line @typescript-eslint/no-require-imports
+          (require('expo-notifications') as NotificationsModule);
+  }
+  return notificationsModule;
+}
 const PHOTO_DIR = `${FileSystem.documentDirectory}people-photos/`;
 
 /** Ask for permission and set up the Android channel. Call once before `reminders.start()`. */
 export async function prepareNotifications(): Promise<boolean> {
+  const Notifications = notifications();
+  if (!Notifications) return false;
   // Show the system notification even while the app is open.
   Notifications.setNotificationHandler({
     // SDK 53+ splits the old shouldShowAlert into shouldShowBanner / shouldShowList.
@@ -45,14 +66,20 @@ export async function prepareNotifications(): Promise<boolean> {
 
 const notifier: Notifier = {
   async schedule(n) {
+    const Notifications = notifications();
+    if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
       identifier: n.id,
       content: { title: n.title, body: n.body, data: n.data },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, channelId: CHANNEL },
     });
   },
-  cancel: (id) => Notifications.cancelScheduledNotificationAsync(id),
+  async cancel(id) {
+    await notifications()?.cancelScheduledNotificationAsync(id);
+  },
   async scheduledIds() {
+    const Notifications = notifications();
+    if (!Notifications) return [];
     return (await Notifications.getAllScheduledNotificationsAsync()).map((n) => n.identifier);
   },
 };
