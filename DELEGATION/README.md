@@ -44,4 +44,5 @@ These are not covered by a file or endpoint in ARCHITECTURE.md. Each has a task 
 - **People list:** ~~no endpoint lists people yet~~ Resolved: PPL-1 added `GET /people`. Rows are the `people` table plus `photo_url` (`/photos/<photo_path>`), as REM-2 expected.
 - **Caregiver accounts:** there is no endpoint to create a caregiver. HUB-5 assumes caregivers come from `seed.py` only.
 - **Flagging a wrong answer:** the dashboard lists flagged answers but no endpoint sets the flag. AST-6 assumes `POST /assistant/log/{id}/flag`.
-- **Caregiver-written trivia:** `trivia_questions.source` allows `caregiver` but no endpoint writes them. TRV-3 assumes `features/trivia/router.py`.
+- **Caregiver-written trivia:** ~~`trivia_questions.source` allows `caregiver` but no endpoint writes them~~ Resolved: TRV-3 added caregiver CRUD at `/trivia/questions` in `features/trivia/router.py` (see [10-trivia-and-memory-prompts.md](10-trivia-and-memory-prompts.md)).
+- **Trivia outcomes:** the architecture saved a prompt's result to `activity_log` but named no endpoint for it. TRV-4 added `POST /trivia/result`; the patient card (PAT-8) calls it instead of `POST /games/result`.

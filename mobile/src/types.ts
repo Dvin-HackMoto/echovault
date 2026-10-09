@@ -304,11 +304,11 @@ export interface TriviaQuestion {
 
 /**
  * GET /trivia/next: a question, or null when a prompt is not allowed now.
- * ASSUMED: `people` is added when the linked memory is about a person, so the
- * card can offer "See photos".
+ * `people` holds the verified person the linked memory is about (or is empty),
+ * so the card can offer "See photos".
  */
 export interface TriviaPrompt extends TriviaQuestion {
-  people?: Person[];
+  people: Person[];
 }
 
 export interface ActivityLog {

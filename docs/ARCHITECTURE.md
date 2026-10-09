@@ -64,8 +64,11 @@ echovault/
 │   │   │   │   ├── generators.py    # build questions from verified people/memories/routine
 │   │   │   │   └── repository.py    # activity_log
 │   │   │   ├── trivia/
-│   │   │   │   ├── router.py        # GET /trivia/next (respects quiet hours + appointments)
-│   │   │   │   └── service.py
+│   │   │   │   ├── router.py        # GET /trivia/next (respects quiet hours + appointments),
+│   │   │   │   │                    #   POST /trivia/result, CRUD /trivia/questions
+│   │   │   │   ├── service.py       # suppression rules, picking a question, validation
+│   │   │   │   ├── loader.py        # trivia.json → trivia_questions on every startup
+│   │   │   │   └── repository.py
 │   │   │   ├── settings/
 │   │   │   │   └── router.py        # game topics, difficulty, prompt frequency, quiet hours
 │   │   │   ├── dashboard/
@@ -411,7 +414,7 @@ LIMIT 5;
 ### 1. Hub Startup
 
 1. Run `ollama serve`, then `uvicorn app.main:app --host 0.0.0.0`.
-2. `main.py` runs `schema.sql` (migrate) and, in demo mode, `seed.py`.
+2. `main.py` runs `schema.sql` (migrate), loads `assets/trivia.json` into `trivia_questions` and, in demo mode, runs `seed.py`.
 3. `stt.py` loads the Whisper model once into memory.
 4. `llm.py` sends a warm-up prompt so the first real answer isn't slow.
 5. The hub prints its LAN IP for the phones to connect to.
@@ -509,9 +512,10 @@ Created ──► unverified ──(caregiver verifies)──► verified ──
    - it's inside `quiet_hours`,
    - a schedule item is within ±30 min, or one has `is_quiet_period = 1`,
    - the last prompt was answered or skipped less than `trivia_frequency_min` ago.
-3. Otherwise it picks an active question matching `game_topics`: personal ones (linked to a verified memory) or general ones from `trivia.json`.
+3. Otherwise it picks an active question up to `game_difficulty`: personal ones (topic in `game_topics`, linked to a verified and currently valid memory) and general ones from `trivia.json` take turns. General trivia is always eligible; `game_topics` only filters the personal ones.
 4. The phone shows a small dismissible card. The patient can answer, look at photos, or close it.
-5. The result is saved to `activity_log` (`activity = trivia_prompt`).
+5. The phone reports the outcome with `POST /trivia/result` (`completed` or `skipped`), saved to `activity_log` (`activity = trivia_prompt`). Whether an answer was right is never stored. The frequency wait counts from this row.
+6. A caregiver manages questions at `/trivia/questions`: write their own, and switch any question (preloaded ones included) off or on.
 
 ### 10. Caregiver Dashboard and Review
 

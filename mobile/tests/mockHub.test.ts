@@ -90,6 +90,17 @@ test("trivia rotates and links a person for See photos", async () => {
   assert.notEqual(second.id, first.id);
 });
 
+test("a trivia outcome is engagement only, like the hub", async () => {
+  const hub = createDemoHub(NOON);
+  const prompt = (await hub.handle("GET", "/trivia/next")) as TriviaPrompt;
+  const saved = (await hub.handle("POST", "/trivia/result", { question_id: prompt.id, outcome: "completed" })) as {
+    activity: string; question_ref: string; outcome: string;
+  };
+  assert.deepEqual([saved.activity, saved.question_ref, saved.outcome], ["trivia_prompt", prompt.id, "completed"]);
+  await assert.rejects(hub.handle("POST", "/trivia/result", { question_id: prompt.id, outcome: "correct" }), { status: 422 });
+  await assert.rejects(hub.handle("POST", "/trivia/result", { question_id: "nobody", outcome: "skipped" }), { status: 404 });
+});
+
 test("unknown routes fail like the real hub", async () => {
   const hub = createDemoHub(NOON);
   await assert.rejects(hub.handle("GET", "/nope"), { status: 404 });

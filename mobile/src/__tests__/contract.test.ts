@@ -8,8 +8,9 @@ import { DoseLog, Medication, PatientProfile, Person, ScheduleAck, ScheduleOccur
 import { dosesToday, medications, people, profile, schedule, TODAY, TOMORROW } from '../testing/fixtures';
 import peopleJson from '../testing/recorded/people.json';
 import placesJson from '../testing/recorded/places.json';
+import trivia from '../testing/recorded/trivia.json';
 import writes from '../testing/recorded/writes.json';
-import type { Person as PersonRow, Place } from '../types';
+import type { ActivityLog, Person as PersonRow, Place, TriviaPrompt } from '../types';
 
 /** Accepts only an array that names every key of T, once. */
 const fieldsOf =
@@ -47,6 +48,13 @@ const PERSON_ROW_FIELDS = fieldsOf<PersonRow>()(
 );
 const PLACE_FIELDS = fieldsOf<Place>()(
   'id', 'name', 'description', 'address', 'photo_path', 'trust', 'updated_at', 'photo_url',
+);
+// trivia prompts and their people use the src/types.ts shapes the patient screens use
+const TRIVIA_FIELDS = fieldsOf<TriviaPrompt>()(
+  'id', 'kind', 'topic', 'question', 'answer', 'choices', 'memory_id', 'difficulty', 'source', 'is_active', 'people',
+);
+const ACTIVITY_FIELDS = fieldsOf<ActivityLog>()(
+  'id', 'activity', 'topic', 'question_ref', 'outcome', 'difficulty', 'duration_sec', 'created_at',
 );
 
 const keys = (row: object) => Object.keys(row).sort();
@@ -93,6 +101,21 @@ test('GET /people rows', () => {
 test('GET /places rows', () => {
   expect(placesJson.length).toBeGreaterThan(0);
   for (const row of placesJson) expect(keys(row)).toEqual(PLACE_FIELDS);
+});
+
+test('GET /trivia/next, and the POST /trivia/result reply', () => {
+  expect(keys(trivia.next)).toEqual(TRIVIA_FIELDS);
+  expect(trivia.next.people.length).toBeGreaterThan(0);
+  // the people on a prompt are the same rows GET /people returns
+  for (const person of trivia.next.people) expect(keys(person)).toEqual(PERSON_ROW_FIELDS);
+  // choices are a JSON array string that includes the answer
+  expect(JSON.parse(trivia.next.choices)).toContain(trivia.next.answer);
+
+  expect(keys(trivia.result)).toEqual(ACTIVITY_FIELDS);
+  expect(trivia.result).toMatchObject({ activity: 'trivia_prompt', question_ref: trivia.next.id, outcome: 'completed' });
+  // once answered, the hub stays quiet for trivia_frequency_min, and never stores right or wrong
+  expect(trivia.next_after_result).toBeNull();
+  expect(trivia.result_rejected.status).toBe(422);
 });
 
 test('times are hub local time strings the phone can parse', () => {
