@@ -4,9 +4,12 @@
 // is a type error) and by the test against the recorded responses. So if the hub adds,
 // removes or renames a field and the recordings are refreshed, this fails until hub.ts follows.
 
-import { DoseLog, Medication, PatientProfile, ScheduleAck, ScheduleOccurrence } from '../hub';
-import { dosesToday, medications, profile, schedule, TODAY, TOMORROW } from '../testing/fixtures';
+import { DoseLog, Medication, PatientProfile, Person, ScheduleAck, ScheduleOccurrence } from '../hub';
+import { dosesToday, medications, people, profile, schedule, TODAY, TOMORROW } from '../testing/fixtures';
+import peopleJson from '../testing/recorded/people.json';
+import placesJson from '../testing/recorded/places.json';
 import writes from '../testing/recorded/writes.json';
+import type { Person as PersonRow, Place } from '../types';
 
 /** Accepts only an array that names every key of T, once. */
 const fieldsOf =
@@ -31,6 +34,19 @@ const MEDICATION_FIELDS = fieldsOf<Medication>()(
 const PROFILE_FIELDS = fieldsOf<PatientProfile>()(
   'id', 'full_name', 'preferred_name', 'birth_date', 'photo_path', 'language', 'font_scale', 'voice_enabled',
   'managed_mode', 'updated_at',
+);
+// photo_uri is not from the hub: cache.ts adds it on the phone
+const PERSON_FIELDS = fieldsOf<Omit<Person, 'photo_uri'>>()(
+  'id', 'name', 'nickname', 'relationship', 'photo_path', 'notes', 'is_caregiver', 'trust', 'created_by',
+  'created_at', 'updated_at', 'photo_url',
+);
+// src/types.ts has its own Person and Place, used by src/api/ and PersonCard
+const PERSON_ROW_FIELDS = fieldsOf<PersonRow>()(
+  'id', 'name', 'nickname', 'relationship', 'photo_path', 'notes', 'is_caregiver', 'trust', 'created_by',
+  'created_at', 'updated_at', 'photo_url',
+);
+const PLACE_FIELDS = fieldsOf<Place>()(
+  'id', 'name', 'description', 'address', 'photo_path', 'trust', 'updated_at', 'photo_url',
 );
 
 const keys = (row: object) => Object.keys(row).sort();
@@ -61,6 +77,22 @@ test('GET /medications rows', () => {
 
 test('GET /patient', () => {
   expect(keys(profile)).toEqual(PROFILE_FIELDS);
+});
+
+test('GET /people rows', () => {
+  expect(peopleJson.length).toBeGreaterThan(0);
+  for (const row of peopleJson) {
+    expect(keys(row)).toEqual(PERSON_FIELDS);
+    expect(keys(row)).toEqual(PERSON_ROW_FIELDS);
+    expect(row.trust).toBe('verified'); // recorded as the patient
+    expect(row.photo_url).toBe(row.photo_path ? `/photos/${row.photo_path}` : null);
+  }
+  for (const row of people) expect(keys(row)).toEqual(PERSON_FIELDS);
+});
+
+test('GET /places rows', () => {
+  expect(placesJson.length).toBeGreaterThan(0);
+  for (const row of placesJson) expect(keys(row)).toEqual(PLACE_FIELDS);
 });
 
 test('times are hub local time strings the phone can parse', () => {

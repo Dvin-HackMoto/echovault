@@ -36,6 +36,12 @@ echovault/
 │   │   │   │   └── service.py       # hash/check PIN
 │   │   │   ├── people/
 │   │   │   │   ├── router.py        # CRUD + POST /people/{id}/photo
+│   │   │   │   ├── service.py       # validation; verified / by-name / fallback-caregiver lookups
+│   │   │   │   ├── photos.py        # save, replace, remove photo files (shared with places)
+│   │   │   │   └── repository.py
+│   │   │   ├── places/
+│   │   │   │   ├── router.py        # CRUD + POST /places/{id}/photo
+│   │   │   │   ├── service.py
 │   │   │   │   └── repository.py
 │   │   │   ├── memories/
 │   │   │   │   ├── router.py        # CRUD, POST /memories/{id}/verify, GET ?trust=&category=

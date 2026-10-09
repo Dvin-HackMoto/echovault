@@ -17,7 +17,10 @@ medications router (`feature/06-medications`) and the settings router (`main`) o
 `main`'s schema and demo seed, plus Losartan (08:00, 20:00 daily) and Metformin
 (06:30 on MO,WE,FR,SA) added through `POST /medications`.
 
-There is no people file: no branch has a people endpoint yet.
+`people.json` (`GET /people`) and `places.json` (`GET /places`) were captured the same
+way from the people and places routers (`feature/03-people-and-places`) on the demo seed.
+`contract.test.ts` checks the `Person` and `Place` types against them; the cache tests
+still use the hand-written people in `fixtures.ts`.
 
 To refresh a file once the routers are merged, start the hub and save the response,
 for example:

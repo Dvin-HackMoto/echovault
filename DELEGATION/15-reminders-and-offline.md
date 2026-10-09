@@ -63,7 +63,7 @@ Found by running this module against the real schedule, medications and settings
 - **Overlapping requests.** `main`'s `database/connection.py` opens SQLite without `check_same_thread=False`, so two requests at once fail and the connection is dropped. This branch restores the hub-foundation connection code, which does not have the problem (40 overlapping requests all answered). The phone client still sends one request at a time, which is harmless.
 - **App shell.** With the hub-foundation `main.py` restored on this branch, feature routers are registered automatically and `/health` and `/photos` exist. The schedule and medications routers themselves are still on their own branches.
 - **Schedule constants.** `SCHEDULE_KINDS` and `ACK_RESPONSES` are in `app/constants.py` on this branch, so `schedule/deps.py` no longer needs its mock for them.
-- **People:** no branch has a people endpoint. `getPeople()` calls `GET /people` and the `Person` type follows `schema.sql`; check both when PPL-1 lands.
+- **People:** PPL-1 has landed. `getPeople()` calls the real `GET /people`, and the `Person` type is checked against `recorded/people.json` by `contract.test.ts`.
 
 ## Still to verify on a device
 

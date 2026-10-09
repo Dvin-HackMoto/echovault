@@ -18,13 +18,16 @@ export interface PersonCardProps {
   theme?: Theme;
 }
 
-/** Build a photo URL from the hub base + stored path, or null when absent. */
-function photoUri(photoPath: string | null | undefined, hubUrl: string | null | undefined): string | null {
-  if (!photoPath) return null;
-  if (/^https?:\/\//i.test(photoPath)) return photoPath;
+/**
+ * Build a photo URL from the hub base + the hub's `photo_url` ("/photos/<file>"),
+ * or null when absent. `photo_path` alone is a file name in that same folder.
+ */
+function photoUri(person: Person, hubUrl: string | null | undefined): string | null {
+  const path = person.photo_url ?? (person.photo_path ? `/photos/${encodeURIComponent(person.photo_path)}` : null);
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
   if (!hubUrl) return null;
-  const base = hubUrl.replace(/\/+$/, "");
-  return `${base}/${photoPath.replace(/^\/+/, "")}`;
+  return `${hubUrl.replace(/\/+$/, "")}${path}`;
 }
 
 /** First letters of up to two name parts, for the placeholder avatar. */
@@ -42,7 +45,7 @@ export default function PersonCard({
   hubUrl,
   theme = defaultTheme,
 }: PersonCardProps) {
-  const uri = photoUri(person.photo_path, hubUrl);
+  const uri = photoUri(person, hubUrl);
   const avatarSize = theme.touchTargets.large;
 
   return (

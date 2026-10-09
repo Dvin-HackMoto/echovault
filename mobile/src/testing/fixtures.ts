@@ -60,8 +60,10 @@ export const amlodipine = medication('Amlodipine');
 export const losartan = medication('Losartan');
 export const metformin = medication('Metformin');
 
-// NOT recorded: no branch has a people endpoint yet (PPL-1). These rows follow the
-// people table in schema.sql, with photo_path as a file name like the medications photos.
+// Written by hand with the fields of GET /people, because the cache tests name these
+// ids and files. recorded/people.json is the hub's real response, and contract.test.ts
+// checks the Person type against it.
+const personRow = { trust: 'verified', created_by: null, created_at: '2026-10-01 09:00:00', updated_at: '2026-10-01 09:00:00' } as const;
 export const people: Person[] = [
   {
     id: 'p-ana',
@@ -71,6 +73,8 @@ export const people: Person[] = [
     photo_path: 'ana.jpg',
     notes: 'Visits every Saturday afternoon.',
     is_caregiver: 1,
+    ...personRow,
+    photo_url: '/photos/ana.jpg',
   },
   {
     id: 'p-miguel',
@@ -80,6 +84,8 @@ export const people: Person[] = [
     photo_path: 'miguel.jpg',
     notes: null,
     is_caregiver: 0,
+    ...personRow,
+    photo_url: '/photos/miguel.jpg',
   },
   {
     id: 'p-cruz',
@@ -89,5 +95,7 @@ export const people: Person[] = [
     photo_path: null,
     notes: null,
     is_caregiver: 0,
+    ...personRow,
+    photo_url: null,
   },
 ];

@@ -150,6 +150,8 @@ export interface Person {
   created_by?: string | null;
   created_at: string;
   updated_at: string;
+  /** Added by the hub: `/photos/<photo_path>`, or null without a photo. */
+  photo_url?: string | null;
 }
 
 export interface Place {
@@ -160,6 +162,8 @@ export interface Place {
   photo_path?: string | null;
   trust: Trust;
   updated_at: string;
+  /** Added by the hub: `/photos/<photo_path>`, or null without a photo. */
+  photo_url?: string | null;
 }
 
 // ─────────────────────────────── memories ────────────────────────────────
