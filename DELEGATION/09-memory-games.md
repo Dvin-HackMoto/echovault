@@ -27,21 +27,23 @@ Definition of Done:
 - [x] Results are stored as engagement, never as a score of ability
 
 Implementation notes (branch `feature/09-memory-games`):
-- `features/games/sources.py` is the only place games reads data. People, places, schedule and
-  settings go through their modules. Memories and trivia have no lookups yet (MEM-2, TRV-1), so
-  `sources.py` reads those tables read-only and filters with `app.ai.records.is_usable`. When those
-  modules publish lookups, swap the two queries there; nothing else changes.
+- `features/games/sources.py` is the only place games reads data. People, places, schedule,
+  settings and trivia (`trivia.service.personal_questions`) go through their modules. Memories has no
+  lookup yet (MEM-2), so `sources.py` reads that table read-only and filters with
+  `app.ai.records.is_usable`. When MEM-2 publishes a lookup, swap that one query.
+- The patient player (`mobile/app/(patient)/games/[type].tsx`) and the demo hub use this round shape.
 - Every type returns the same round: `{activity, topic, difficulty, available, reason, questions}`,
   each question `{id, prompt, photo_url, choice_style, choices[{id, label, photo_url}], answer_id,
   answer_label}`. `choices: []` is open recall. Contract is in `mobile/src/api/games.ts`.
 - `available: false` with `reason` `topic_not_selected` or `not_enough_data` instead of an error.
 - Topics that unlock each game: family_matching / name_recall ← family_names, relationships;
   routine_recall ← routines; event_recall ← recent_events; picture_matching ← familiar_places,
-  recent_events; memory_quiz ← trivia on any selected topic (or no topic).
+  recent_events; memory_quiz ← personal trivia on the selected topics.
 - Choices per question = difficulty + 1, fewer if data is short, never fewer than 2. 3 questions per round.
 - The phone posts one result per round (`completed`, `skipped` or `stopped`). `trivia_prompt` is rejected
   here; the trivia module logs it.
-- Demo seed: picture_matching is `not_enough_data` until a place or memory has a photo.
+- Demo seed: picture_matching is `topic_not_selected` with the default topics, and
+  `not_enough_data` once a caregiver selects it, until a place or memory has a photo.
 - Tests: `backend/tests/test_games.py`.
 
 ## GAM-1

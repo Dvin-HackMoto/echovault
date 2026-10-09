@@ -54,13 +54,15 @@ def test_demo_mode_seeds_on_startup(monkeypatch):
 
 
 def test_startup_runs_ai_startup_after_migrate(monkeypatch):
-    # ARCHITECTURE "Hub Startup": migrate, (seed), load Whisper + warm up Ollama, then ready.
+    # ARCHITECTURE "Hub Startup": migrate, preloaded trivia (TRV-1), (seed), load Whisper +
+    # warm up Ollama, then ready. migrate is stubbed, so every step after it is stubbed too.
     calls = []
     monkeypatch.setattr("app.main.migrate", lambda: calls.append("migrate"))
+    monkeypatch.setattr("app.main.load_trivia", lambda: calls.append("trivia"))
     monkeypatch.setattr("app.main.ai_startup", lambda: calls.append("ai"))
     with TestClient(create_app()) as client:
         assert client.get("/health").status_code == 200
-    assert calls == ["migrate", "ai"]
+    assert calls == ["migrate", "trivia", "ai"]
 
 
 def test_ai_startup_failures_do_not_stop_the_hub(monkeypatch):

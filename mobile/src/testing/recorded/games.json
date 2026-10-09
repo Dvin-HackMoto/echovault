@@ -1,0 +1,153 @@
+{
+  "family_matching": {
+    "activity": "family_matching",
+    "topic": "relationships",
+    "difficulty": 1,
+    "available": true,
+    "reason": null,
+    "questions": [
+      {
+        "id": "seed-person-liza",
+        "prompt": "Which one is your nurse?",
+        "photo_url": null,
+        "choice_style": "photo",
+        "choices": [
+          {
+            "id": "seed-person-liza",
+            "label": "Nurse Liza",
+            "photo_url": "/photos/seed-liza.png"
+          },
+          {
+            "id": "seed-person-miguel",
+            "label": "Migs",
+            "photo_url": "/photos/seed-miguel.png"
+          }
+        ],
+        "answer_id": "seed-person-liza",
+        "answer_label": "Nurse Liza"
+      },
+      {
+        "id": "seed-person-paolo",
+        "prompt": "Which one is your grandson?",
+        "photo_url": null,
+        "choice_style": "photo",
+        "choices": [
+          {
+            "id": "seed-person-bea",
+            "label": "Bea",
+            "photo_url": "/photos/seed-bea.png"
+          },
+          {
+            "id": "seed-person-paolo",
+            "label": "Pao",
+            "photo_url": "/photos/seed-paolo.png"
+          }
+        ],
+        "answer_id": "seed-person-paolo",
+        "answer_label": "Pao"
+      },
+      {
+        "id": "seed-person-ana",
+        "prompt": "Which one is your daughter?",
+        "photo_url": null,
+        "choice_style": "photo",
+        "choices": [
+          {
+            "id": "seed-person-dr-cruz",
+            "label": "Dr. Cruz",
+            "photo_url": "/photos/seed-dr-cruz.png"
+          },
+          {
+            "id": "seed-person-ana",
+            "label": "Ana",
+            "photo_url": "/photos/seed-ana.png"
+          }
+        ],
+        "answer_id": "seed-person-ana",
+        "answer_label": "Ana"
+      }
+    ]
+  },
+  "memory_quiz": {
+    "activity": "memory_quiz",
+    "topic": null,
+    "difficulty": 1,
+    "available": true,
+    "reason": null,
+    "questions": [
+      {
+        "id": "seed-trivia-paolo",
+        "prompt": "Who is Paolo?",
+        "photo_url": null,
+        "choice_style": "text",
+        "answer_label": "My grandson",
+        "choices": [
+          {
+            "id": "seed-trivia-paolo:2",
+            "label": "My doctor",
+            "photo_url": null
+          },
+          {
+            "id": "seed-trivia-paolo:0",
+            "label": "My grandson",
+            "photo_url": null
+          }
+        ],
+        "answer_id": "seed-trivia-paolo:0"
+      },
+      {
+        "id": "seed-trivia-ana-flower",
+        "prompt": "Ana is your daughter. Do you remember her favorite flower?",
+        "photo_url": null,
+        "choice_style": "text",
+        "answer_label": "Sunflowers",
+        "choices": [
+          {
+            "id": "seed-trivia-ana-flower:0",
+            "label": "Sunflowers",
+            "photo_url": null
+          },
+          {
+            "id": "seed-trivia-ana-flower:2",
+            "label": "Sampaguita",
+            "photo_url": null
+          }
+        ],
+        "answer_id": "seed-trivia-ana-flower:0"
+      },
+      {
+        "id": "seed-trivia-plants",
+        "prompt": "What do you usually do every morning after breakfast?",
+        "photo_url": null,
+        "choice_style": "text",
+        "answer_label": "Water the plants",
+        "choices": [],
+        "answer_id": null
+      }
+    ]
+  },
+  "picture_matching": {
+    "activity": "picture_matching",
+    "topic": null,
+    "difficulty": 1,
+    "available": false,
+    "reason": "topic_not_selected",
+    "questions": []
+  },
+  "result": {
+    "id": "ecc94cd8-554a-4281-a7fa-f12b89520d9b",
+    "activity": "family_matching",
+    "topic": "relationships",
+    "question_ref": null,
+    "outcome": "completed",
+    "difficulty": 1,
+    "duration_sec": 64,
+    "created_at": "2026-10-10 07:23:44"
+  },
+  "result_rejected": {
+    "status": 422,
+    "body": {
+      "detail": "activity must be one of family_matching, name_recall, event_recall, routine_recall, picture_matching, memory_quiz"
+    }
+  }
+}

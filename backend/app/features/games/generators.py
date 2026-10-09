@@ -32,6 +32,7 @@ import json
 import random
 
 from app.ai.records import display_name
+from app.constants import ALLOWED_GAME_TOPICS as ALL_TOPICS
 
 from . import sources
 
@@ -204,7 +205,8 @@ def event_recall(ctx, topic):
                 [_choice(p["id"], _name(p), p["photo_url"]) for p in wrong],
                 photo_url=memory["photo_url"],
             ))
-    for trivia in sources.personal_trivia(ctx.conn, ctx.difficulty):
+    # caregiver questions about these events, whatever topic they were filed under
+    for trivia in sources.personal_trivia(ctx.conn, ALL_TOPICS, ctx.difficulty):
         if trivia["memory"]["category"] == "history":
             questions.append(_trivia_question(ctx, trivia))
     return _finish(ctx, _sample(ctx, [q for q in questions if q], len(questions)))
@@ -239,11 +241,9 @@ def _trivia_question(ctx, trivia):
 
 
 def memory_quiz(ctx, topic):
-    """Caregiver trivia linked to verified memories, on the selected topics.
-    Questions without a topic are included: they still come from a verified memory."""
-    selected = set(ctx.topics)
-    rows = [t for t in sources.personal_trivia(ctx.conn, ctx.difficulty)
-            if t.get("topic") is None or t["topic"] in selected]
+    """Caregiver trivia linked to verified memories, on the selected topics (the same
+    questions the trivia popups may ask)."""
+    rows = sources.personal_trivia(ctx.conn, ctx.topics, ctx.difficulty)
     topic_of, questions = {}, []
     for row in _sample(ctx, rows, len(rows)):
         question = _trivia_question(ctx, row)
@@ -306,8 +306,7 @@ GAMES = {
     "routine_recall": (("routines",), routine_recall, True),
     "picture_matching": (("familiar_places", "recent_events"), picture_matching, True),
     # trivia rows carry their own topic, so one quiz can mix the selected topics
-    "memory_quiz": (("family_names", "relationships", "routines", "familiar_places", "recent_events"),
-                    memory_quiz, False),
+    "memory_quiz": (ALL_TOPICS, memory_quiz, False),
 }
 
 GAME_TYPES = tuple(GAMES)

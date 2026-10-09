@@ -31,7 +31,7 @@ test("every route the hub has is used; the rest are marked demo", { skip }, asyn
   const calls: [string, string][] = [
     ["GET", "/patient"], ["GET", "/settings"], ["GET", "/schedule/today"], ["GET", "/people"],
     ["GET", "/medications/today"], ["POST", "/medications/logs/x"], ["POST", "/assistant/ask"],
-    ["GET", "/games/name_recall/round"], ["GET", "/trivia/next"], ["POST", "/trivia/result"],
+    ["GET", "/games/name_recall/round"], ["POST", "/games/result"], ["GET", "/trivia/next"], ["POST", "/trivia/result"],
   ];
   const used = Object.fromEntries(calls.map(([m, p]) => [`${m} ${p}`, chooseSource("auto", r, m, p)]));
   console.log("   sources:", used);

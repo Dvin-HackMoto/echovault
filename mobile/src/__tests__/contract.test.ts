@@ -8,8 +8,10 @@ import { DoseLog, Medication, PatientProfile, Person, ScheduleAck, ScheduleOccur
 import { dosesToday, medications, people, profile, schedule, TODAY, TOMORROW } from '../testing/fixtures';
 import peopleJson from '../testing/recorded/people.json';
 import placesJson from '../testing/recorded/places.json';
+import games from '../testing/recorded/games.json';
 import trivia from '../testing/recorded/trivia.json';
 import writes from '../testing/recorded/writes.json';
+import type { GameChoice, GameQuestion, GameRound } from '../api/games';
 import type { ActivityLog, Person as PersonRow, Place, TriviaPrompt } from '../types';
 
 /** Accepts only an array that names every key of T, once. */
@@ -56,6 +58,12 @@ const TRIVIA_FIELDS = fieldsOf<TriviaPrompt>()(
 const ACTIVITY_FIELDS = fieldsOf<ActivityLog>()(
   'id', 'activity', 'topic', 'question_ref', 'outcome', 'difficulty', 'duration_sec', 'created_at',
 );
+// src/api/games.ts: one round shape for every game type
+const ROUND_FIELDS = fieldsOf<GameRound>()('activity', 'topic', 'difficulty', 'available', 'reason', 'questions');
+const QUESTION_FIELDS = fieldsOf<GameQuestion>()(
+  'id', 'prompt', 'photo_url', 'choice_style', 'choices', 'answer_id', 'answer_label',
+);
+const CHOICE_FIELDS = fieldsOf<GameChoice>()('id', 'label', 'photo_url');
 
 const keys = (row: object) => Object.keys(row).sort();
 
@@ -116,6 +124,31 @@ test('GET /trivia/next, and the POST /trivia/result reply', () => {
   // once answered, the hub stays quiet for trivia_frequency_min, and never stores right or wrong
   expect(trivia.next_after_result).toBeNull();
   expect(trivia.result_rejected.status).toBe(422);
+});
+
+test('GET /games/{type}/round, and the POST /games/result reply', () => {
+  for (const round of [games.family_matching, games.memory_quiz, games.picture_matching]) {
+    expect(keys(round)).toEqual(ROUND_FIELDS);
+    for (const q of round.questions) {
+      expect(keys(q)).toEqual(QUESTION_FIELDS);
+      for (const c of q.choices) expect(keys(c)).toEqual(CHOICE_FIELDS);
+      // open recall has no choices and no answer_id; otherwise the answer is one of the choices
+      if (q.choices.length) expect(q.choices.map((c) => c.id)).toContain(q.answer_id);
+      else expect(q.answer_id).toBeNull();
+    }
+  }
+  expect(games.family_matching.available).toBe(true);
+  for (const q of games.family_matching.questions) {
+    expect(q.choice_style).toBe('photo');
+    for (const c of q.choices) expect(c.photo_url).toMatch(/^\/photos\//);
+  }
+  // the default game_topics don't include familiar_places or recent_events
+  expect(games.picture_matching).toMatchObject({ available: false, reason: 'topic_not_selected', questions: [] });
+
+  // one engagement row per round; trivia prompts are logged by /trivia/result instead
+  expect(keys(games.result)).toEqual(ACTIVITY_FIELDS);
+  expect(games.result).toMatchObject({ activity: 'family_matching', outcome: 'completed' });
+  expect(games.result_rejected.status).toBe(422);
 });
 
 test('times are hub local time strings the phone can parse', () => {

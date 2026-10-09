@@ -233,9 +233,12 @@ def test_memory_quiz_only_uses_trivia_linked_to_usable_memories_on_selected_topi
     shown = make_trivia_question(db, kind=TRIVIA_FAMILY, topic="relationships", question="Ana's flower?",
                                  answer="Sunflowers", choices=["Sunflowers", "Roses", "Lilies"],
                                  memory_id=make_memory(db)["id"])
-    open_recall = make_trivia_question(db, kind=TRIVIA_FAMILY, topic=None, question="Who visits on Saturday?",
+    open_recall = make_trivia_question(db, kind=TRIVIA_FAMILY, topic="relationships", question="Who visits on Saturday?",
                                        answer="Miguel", memory_id=make_memory(db)["id"])
     hidden = [
+        # same rule as the trivia popups (TRV): a personal question needs one of the chosen topics
+        make_trivia_question(db, kind=TRIVIA_FAMILY, topic=None, answer="X", choices=["X", "Y"],
+                             memory_id=make_memory(db)["id"]),
         make_trivia_question(db, kind=TRIVIA_FAMILY, topic="relationships", answer="X", choices=["X", "Y"],
                              memory_id=make_memory(db, trust=TRUST_UNVERIFIED)["id"]),
         make_trivia_question(db, kind=TRIVIA_FAMILY, topic="routines", answer="X", choices=["X", "Y"],

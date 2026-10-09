@@ -6,10 +6,10 @@
 #   verified_places                        features/places/service.py (PPL-3)
 #   routine_today                          features/schedule/service.py (SCH-2)
 #   settings                               features/settings/router.py (SET-1)
-# Memories (MEM) and trivia (TRV) have no lookups yet, so this file reads those tables
-# itself, read-only, and filters with app.ai.records.is_usable (the same rule the
-# assistant uses). When MEM-2 / TRV-1 publish lookups, swap the two queries below for
-# them; nothing else in games has to change.
+#   personal_trivia                        features/trivia/service.py (TRV)
+# Memories (MEM) has no lookups yet, so usable_memories() reads that table itself,
+# read-only, and filters with app.ai.records.is_usable (the same rule the assistant
+# uses). When MEM-2 publishes a lookup, swap that one query; nothing else changes.
 
 from app import constants
 from app.ai.records import is_usable
@@ -17,11 +17,10 @@ from app.features.people import service as people_service
 from app.features.places import service as places_service
 from app.features.schedule import service as schedule_service
 from app.features.settings.router import _read_all_settings
+from app.features.trivia import service as trivia_service
 
 # schedule kinds that make up the daily routine (appointments and visits are one-offs)
 ROUTINE_KINDS = (constants.SCHEDULE_ROUTINE, constants.SCHEDULE_MEAL, constants.SCHEDULE_ACTIVITY)
-# trivia kinds tied to a personal memory; 'general' trivia belongs to the trivia popups
-PERSONAL_TRIVIA_KINDS = (constants.TRIVIA_PERSONAL, constants.TRIVIA_FAMILY, constants.TRIVIA_ROUTINE)
 
 
 def with_photo_url(row):
@@ -76,24 +75,15 @@ def usable_memories(conn, category=None):
 # ────────────────────────────────── trivia ──────────────────────────────────────
 
 
-def personal_trivia(conn, max_difficulty):
-    """Active personal / family / routine questions whose linked memory is usable,
-    up to `max_difficulty`. Each row gets `memory` (the linked memory row)."""
-    marks = ", ".join("?" for _ in PERSONAL_TRIVIA_KINDS)
-    rows = conn.execute(
-        f"SELECT * FROM trivia_questions WHERE is_active = 1 AND memory_id IS NOT NULL "
-        f"AND kind IN ({marks}) AND difficulty <= ? ORDER BY id",
-        (*PERSONAL_TRIVIA_KINDS, max_difficulty),
-    ).fetchall()
+def personal_trivia(conn, topics, max_difficulty):
+    """Active questions about the patient's own life on `topics`, up to `max_difficulty`,
+    from the trivia module (TRV). Each row gets `memory` (the linked memory row); a row
+    whose memory fails is_usable here too (e.g. still linked to a conflict) is dropped."""
+    rows = trivia_service.personal_questions(conn, topics, max_difficulty)
     if not rows:
         return []
     memories = {m["id"]: m for m in usable_memories(conn)}
-    found = []
-    for row in rows:
-        memory = memories.get(row["memory_id"])
-        if memory is not None:
-            found.append({**dict(row), "memory": memory})
-    return found
+    return [{**row, "memory": memories[row["memory_id"]]} for row in rows if row.get("memory_id") in memories]
 
 
 # ───────────────────────────────── schedule ─────────────────────────────────────

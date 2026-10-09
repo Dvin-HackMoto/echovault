@@ -12,6 +12,8 @@ them as their data, and `contract.test.ts` checks the types in `src/hub.ts` agai
 | `patient.json` | `GET /patient` |
 | `writes.json` | `POST /schedule/{id}/ack` and `POST /medications/logs/{id}`, accepted and rejected |
 | `trivia.json` | `GET /trivia/next`, `POST /trivia/result` (accepted, then a rejected `correct`), and `GET /trivia/next` again |
+| `people.json`, `places.json` | `GET /people`, `GET /places` |
+| `games.json` | `GET /games/{type}/round` for three types, `POST /games/result` (accepted, then a rejected `trivia_prompt`) |
 
 They came from one hub running the schedule router (`feature/05-schedule`), the
 medications router (`feature/06-medications`) and the settings router (`main`) on
@@ -25,6 +27,11 @@ still use the hand-written people in `fixtures.ts`.
 
 `trivia.json` came from the trivia router (`feature/10-trivia-and-memory-prompts`) on the
 demo seed, with the hub clock at 2026-10-10 10:30.
+
+`games.json` came from the merged hub on `main` (games, people, places, trivia) on the demo
+seed with the default settings: `GET /games/{family_matching,memory_quiz,picture_matching}/round`,
+then `POST /games/result` accepted and a rejected `trivia_prompt`. The round generator's
+shuffle was seeded so the file is stable.
 
 To refresh a file once the routers are merged, start the hub and save the response,
 for example:

@@ -4,6 +4,7 @@
 #   require_caregiver     returns the caregiver row (dict)
 #   busy_schedule()       SCH-2: schedule occurrences that overlap a time window
 #   read_settings()       SET-1: the settings table over its defaults
+#   with_photo_url(row)   PPL-2: adds photo_url ("/photos/<photo_path>") to a person row
 #
 # Memories (MEM) has no functions to call yet. Trivia only needs to know whether a
 # question's memory is verified and currently valid, which repository.py reads from the
@@ -16,6 +17,7 @@ from app.constants import (
     TRIVIA_SOURCE_CAREGIVER, TRIVIA_SOURCE_PRELOADED, TRIVIA_SOURCES,
 )
 from app.database.connection import connect, get_db
+from app.features.people.photos import with_photo_url
 from app.features.schedule import service as _schedule
 from app.middleware.dependencies import get_role, require_caregiver
 
@@ -23,7 +25,7 @@ __all__ = [
     "ALLOWED_GAME_TOPICS", "ROLE_CAREGIVER", "TRIVIA_GENERAL", "TRIVIA_KINDS",
     "TRIVIA_SOURCE_CAREGIVER", "TRIVIA_SOURCE_PRELOADED", "TRIVIA_SOURCES",
     "connect", "get_db", "get_role", "require_caregiver",
-    "busy_schedule", "read_settings", "trivia_file",
+    "busy_schedule", "read_settings", "trivia_file", "with_photo_url",
 ]
 
 

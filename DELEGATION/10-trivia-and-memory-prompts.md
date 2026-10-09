@@ -85,9 +85,10 @@ from app.features.trivia import service as trivia
 
 trivia.next_prompt(conn)          # the prompt to show now, or None
 trivia.suppression_reason(conn)   # 'quiet_hours' | 'schedule' | 'frequency' | None
+trivia.personal_questions(conn, topics, difficulty)   # askable non-general questions on topics
 ```
 
-GAM-3 can read preloaded and caregiver questions straight from `trivia_questions`; they are there from the first startup.
+GAM-3 (`memory_quiz`, `event_recall`) gets its questions from `personal_questions`, so games and the popups apply the same topic, difficulty and verified-memory rule.
 
 ## TRV-1
 

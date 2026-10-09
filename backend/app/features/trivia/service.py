@@ -13,6 +13,7 @@
 # Other modules can call:
 #   next_prompt(conn)          the prompt to show now, or None
 #   suppression_reason(conn)   'quiet_hours' | 'schedule' | 'frequency' | None
+#   personal_questions(conn, topics, difficulty)   games: askable questions about the patient
 
 import json
 import random
@@ -23,7 +24,7 @@ from fastapi import HTTPException
 from . import repository
 from .deps import (
     ALLOWED_GAME_TOPICS, TRIVIA_GENERAL, TRIVIA_KINDS, TRIVIA_SOURCE_PRELOADED,
-    busy_schedule, read_settings,
+    busy_schedule, read_settings, with_photo_url,
 )
 
 MANILA = timezone(timedelta(hours=8))
@@ -91,11 +92,16 @@ def _pick(conn, questions):
 
 
 def as_prompt(conn, question):
-    people = repository.people_for(conn, question)
-    return {
-        **question,
-        "people": [{**p, "photo_url": f"/photos/{p['photo_path']}" if p["photo_path"] else None} for p in people],
-    }
+    return {**question, "people": [with_photo_url(p) for p in repository.people_for(conn, question)]}
+
+
+def personal_questions(conn, topics, difficulty, now=None):
+    """Active questions about the patient's own life (not general trivia) on `topics`,
+    up to `difficulty`, whose memory is verified and currently valid. Used by the games
+    memory_quiz and event_recall, so both features apply the same rule."""
+    stamp = (now or manila_now()).strftime(DT_FORMAT)
+    return [q for q in repository.askable_questions(conn, list(topics), difficulty, stamp)
+            if q["kind"] != TRIVIA_GENERAL]
 
 
 def next_prompt(conn, now=None):
