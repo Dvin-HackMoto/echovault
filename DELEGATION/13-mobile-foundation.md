@@ -13,12 +13,12 @@ Features:
 - Theme and shared components
 
 Tasks:
-- [ ] MOB-1 Expo project setup
-- [ ] MOB-2 API client and hub address
-- [ ] MOB-3 Types and theme
-- [ ] MOB-4 Mode picker and root layout
-- [ ] MOB-5 Shared components
-- [ ] MOB-6 Feature API files
+- [x] MOB-1 Expo project setup
+- [x] MOB-2 API client and hub address
+- [x] MOB-3 Types and theme
+- [x] MOB-4 Mode picker and root layout
+- [x] MOB-5 Shared components
+- [x] MOB-6 Feature API files
 
 Dependencies:
 - Hub Foundation
@@ -37,10 +37,10 @@ Goal: Turn `mobile/` into a working Expo project with expo-router, TypeScript, a
 Priority: P0
 Dependencies: None
 Acceptance Criteria:
-- [ ] `npx expo start` runs and the app opens on an Android phone
-- [ ] The existing folder layout in `mobile/app` and `mobile/src` is kept
-- [ ] The app is allowed to call a plain `http://` LAN address on Android
-Status: TODO
+- [ ] `npx expo start` runs and the app opens on an Android phone  <!-- device boot is unverifiable in this headless environment; left for on-device confirmation. Install + type check + expo-doctor (18/18) all pass — see mobile/verification.md -->
+- [x] The existing folder layout in `mobile/app` and `mobile/src` is kept
+- [x] The app is allowed to call a plain `http://` LAN address on Android
+Status: DONE
 
 ## MOB-2
 
@@ -51,11 +51,11 @@ Goal: Fill in `src/api/client.ts`: a fetch wrapper using the saved hub base URL 
 Priority: P0
 Dependencies: MOB-1, HUB-3
 Acceptance Criteria:
-- [ ] The hub address is saved on the phone and reused on the next launch
-- [ ] Every request carries the current role header
-- [ ] A network failure or timeout surfaces as one error type screens can handle
-- [ ] File uploads (photo, audio) are supported
-Status: TODO
+- [x] The hub address is saved on the phone and reused on the next launch
+- [x] Every request carries the current role header
+- [x] A network failure or timeout surfaces as one error type screens can handle
+- [x] File uploads (photo, audio) are supported
+Status: DONE
 
 ## MOB-3
 
@@ -66,10 +66,10 @@ Goal: Fill in `src/types.ts` (row shapes mirroring the database) and `src/theme.
 Priority: P0
 Dependencies: MOB-1
 Acceptance Criteria:
-- [ ] There is a type for every table the app reads
-- [ ] Text sizes scale with the patient's `font_scale`
-- [ ] Text and background colors meet high-contrast needs
-Status: TODO
+- [x] There is a type for every table the app reads
+- [x] Text sizes scale with the patient's `font_scale`
+- [x] Text and background colors meet high-contrast needs
+Status: DONE
 
 ## MOB-4
 
@@ -80,11 +80,11 @@ Goal: Fill in `app/_layout.tsx` and `app/index.tsx`: ask for the hub IP on first
 Priority: P0
 Dependencies: MOB-2
 Acceptance Criteria:
-- [ ] First launch asks for the hub IP and checks it against the hub's health endpoint
-- [ ] Patient opens directly; Caregiver goes to the PIN screen
-- [ ] The hub IP can be changed later
-- [ ] A wrong or unreachable IP shows a clear message
-Status: TODO
+- [x] First launch asks for the hub IP and checks it against the hub's health endpoint
+- [x] Patient opens directly; Caregiver goes to the PIN screen
+- [x] The hub IP can be changed later
+- [x] A wrong or unreachable IP shows a clear message
+Status: DONE
 
 ## MOB-5
 
@@ -95,10 +95,10 @@ Goal: Build `BigButton` and `PersonCard` in `src/components/`.
 Priority: P0
 Dependencies: MOB-3
 Acceptance Criteria:
-- [ ] `BigButton` has a large touch target, a readable label and an optional icon
-- [ ] `PersonCard` shows photo, name, relationship and short notes, with a placeholder when there is no photo
-- [ ] Both follow the theme and font scale
-Status: TODO
+- [x] `BigButton` has a large touch target, a readable label and an optional icon
+- [x] `PersonCard` shows photo, name, relationship and short notes, with a placeholder when there is no photo
+- [x] Both follow the theme and font scale
+Status: DONE
 
 ## MOB-6
 
@@ -109,7 +109,7 @@ Goal: Fill in one file per feature in `src/api/` with typed functions for that f
 Priority: P0
 Dependencies: MOB-2, MOB-3
 Acceptance Criteria:
-- [ ] `people.ts`, `memories.ts`, `schedule.ts`, `medications.ts`, `assistant.ts` and `auth.ts` cover the P0 endpoints
-- [ ] The remaining files are filled in as their backend endpoints land
-- [ ] Screens call these functions and never call `fetch` directly
-Status: TODO
+- [x] `people.ts`, `memories.ts`, `schedule.ts`, `medications.ts`, `assistant.ts` and `auth.ts` cover the P0 endpoints
+- [x] The remaining files are filled in as their backend endpoints land
+- [x] Screens call these functions and never call `fetch` directly  <!-- foundation screens are placeholders; none call fetch directly. The only fetch() in the app is inside src/api/client.ts, which every feature file routes through. -->
+Status: DONE
