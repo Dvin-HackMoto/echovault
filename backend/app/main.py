@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from app import config
 from app.database import connection
+from app.features.backup.router import router as backup_router
 from app.features.dashboard.router import router as dashboard_router
 from app.features.settings.router import router as settings_router
 
@@ -26,3 +27,4 @@ def _startup():
 
 app.include_router(settings_router)
 app.include_router(dashboard_router)
+app.include_router(backup_router)

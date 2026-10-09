@@ -43,3 +43,21 @@ def require_caregiver(identity=Depends(get_role), conn=Depends(get_db)):
         raise HTTPException(status_code=403, detail="Unknown or inactive caregiver")
 
     return caregiver_id
+
+
+def require_admin(caregiver_id=Depends(require_caregiver), conn=Depends(get_db)):
+    """Allow only admin caregivers. 403 for non-admin access levels.
+
+    Layered on require_caregiver (which already rejects patients and unknown or
+    inactive caregivers and returns the id). Kept local to Module 12 for the
+    backup-import gate — the Auth module still owns real access-level policy.
+    Returns the authenticated caregiver id on success.
+    """
+    row = conn.execute(
+        "SELECT access_level FROM caregivers WHERE id = ?",
+        (caregiver_id,),
+    ).fetchone()
+    if row is None or row["access_level"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return caregiver_id

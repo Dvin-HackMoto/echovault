@@ -18,6 +18,9 @@ from app.constants import SETTINGS_DEFAULTS
 
 # Fixed demo ids so re-seeding is idempotent.
 CAREGIVER_ID = "caregiver-demo-1"
+# A non-admin (editor) caregiver so backup-import 403 tests have a real
+# non-admin to exercise the admin gate against. Additive data only.
+EDITOR_CAREGIVER_ID = "caregiver-demo-2"
 DEMO_PIN = "1234"
 
 # PBKDF2 parameters. Auth module owns real login; this is just so the seeded
@@ -57,6 +60,13 @@ def seed(conn):
         "INSERT OR IGNORE INTO caregivers (id, name, relationship, access_level, "
         "pin_hash, is_active) VALUES (?, ?, ?, 'admin', ?, 1)",
         (CAREGIVER_ID, "Ana Santos", "daughter", hash_pin(DEMO_PIN)),
+    )
+
+    # ─── a non-admin (editor) caregiver, for the import admin-gate tests ───
+    conn.execute(
+        "INSERT OR IGNORE INTO caregivers (id, name, relationship, access_level, "
+        "pin_hash, is_active) VALUES (?, ?, ?, 'editor', ?, 1)",
+        (EDITOR_CAREGIVER_ID, "Ben Santos", "son", hash_pin(DEMO_PIN)),
     )
 
     # ─── settings (four rows, JSON values) ───
