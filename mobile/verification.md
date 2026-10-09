@@ -147,3 +147,53 @@ setting is present via the correct plugin so the app can call a plain
   schedule, medications, assistant, games, trivia, and the auth router) are
   typed against the ARCHITECTURE-named routes and carry an inline comment that
   they are wired to the documented contract pending their backend modules.
+
+## Upgrade to Expo SDK 57 (Module 14)
+
+The foundation above was pinned to SDK 52 for expo-av. The Expo Go app on the
+Play Store only runs the current SDK (57), so SDK 52 could not be opened on a
+phone without a custom dev build. Module 14 upgraded the foundation:
+
+- `npx expo install --fix` picked the SDK 57 version of every package; the
+  install itself was finished by hand (clean `node_modules` + `npm install`).
+- **expo-av → expo-audio.** expo-av is not part of SDK 57; its replacement,
+  expo-audio, records in Expo Go. `src/voice/record.ts` now exposes
+  `useHoldToTalk()` (start on press-in, stop on release returns an
+  `UploadFile` for `askVoice`). `app.json` declares the `expo-audio` plugin
+  with the same microphone text; the `expo.doctor` exclude for expo-av is gone.
+- `newArchEnabled` was removed from `app.json` (the new architecture is the
+  only one in SDK 57, and expo-doctor rejects the key).
+- `expo-asset` added (a required peer of expo-audio / expo-router).
+- `react-dom` + `react-native-web` added so `npm run web` can preview screens.
+
+Resolved versions (Node v24.13.1, npm 11.8.0, Windows 11):
+
+| Package | Resolved version |
+|---|---|
+| expo | 57.0.27 |
+| react | 19.2.3 |
+| react-native | 0.86.3 |
+| expo-router | 57.0.25 |
+| expo-audio | 57.0.5 |
+| expo-speech | 57.0.3 |
+| expo-notifications | 57.0.22 |
+| @react-native-async-storage/async-storage | 2.2.0 |
+| expo-asset | 57.0.19 |
+| react-native-screens | 4.26.2 |
+| react-native-safe-area-context | 5.7.0 |
+| react-native-gesture-handler | 2.32.0 |
+| typescript | 6.0.3 |
+
+Checks after the upgrade and the Module 14 screens:
+
+- `npx expo install --check` → "Dependencies are up to date".
+- `npx expo-doctor` → 21/21 checks passed.
+- `npx tsc --noEmit` → no output, exit 0 (with typed routes generated in
+  `.expo/types`).
+- `npx expo export --platform android` → bundle built (4 MB Hermes bytecode).
+- `npm run test:patient` → 21 passed, 5 skipped (the hub contract tests run
+  only with `HUB_URL` set).
+
+`checkHealth` now reads `GET /openapi.json` first (every FastAPI app serves
+it, and the client uses the route list to decide real vs demo data) and falls
+back to `GET /health`.

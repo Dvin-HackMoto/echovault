@@ -1,14 +1,14 @@
 // wires reminders, cache and queue to the real phone (Expo)
 //
-// Type-checked against the Expo SDK 52 packages; not yet tried on a device. The logic
+// Type-checked against the Expo SDK 57 packages; not yet tried on a device. The logic
 // it wires up is tested in src/__tests__/.
 //
 // The app-wide instance lives in src/offline.ts (hub address from api/client.ts), and
 // app/(patient)/_layout.tsx calls prepareNotifications() and offline.reminders.start().
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// On Expo SDK 54+ these functions live in 'expo-file-system/legacy'.
-import * as FileSystem from 'expo-file-system';
+// Since Expo SDK 54 these functions live in 'expo-file-system/legacy'.
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -25,10 +25,10 @@ const PHOTO_DIR = `${FileSystem.documentDirectory}people-photos/`;
 export async function prepareNotifications(): Promise<boolean> {
   // Show the system notification even while the app is open.
   Notifications.setNotificationHandler({
-    // expo-notifications 0.29 (SDK 52) uses shouldShowAlert; SDK 53+ splits it into
-    // shouldShowBanner / shouldShowList.
+    // SDK 53+ splits the old shouldShowAlert into shouldShowBanner / shouldShowList.
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     }),

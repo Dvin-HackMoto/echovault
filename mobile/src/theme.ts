@@ -24,6 +24,18 @@ export const colors = {
   danger: "#B00020",
   onDanger: "#FFFFFF",
   success: "#1E6B2E",
+  // Calm secondary buttons and soft status backgrounds (Module 14 patient screens).
+  // Each fg/bg pair below clears 4.5:1.
+  secondary: "#E3ECF7",
+  onSecondary: "#0B3A73",
+  successBg: "#E6F4EA",
+  warning: "#7A4A00",
+  warningBg: "#FFF4D6",
+  /** "Demo data" labels: data from the in-app demo hub, not the real one. */
+  demo: "#6B3FA0",
+  demoBg: "#F1EAFB",
+  /** Schedule items that already happened. */
+  past: "#5B6470",
 } as const;
 
 export type ColorToken = keyof typeof colors;

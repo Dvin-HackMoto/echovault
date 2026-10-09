@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "echovault",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.echovault.mobile",
@@ -26,7 +25,7 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "EchoVault records your question so the helper can answer."
         }

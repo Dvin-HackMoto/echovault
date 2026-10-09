@@ -1,50 +1,65 @@
 // EchoVault mobile — audio recording (ARCHITECTURE §5.1).
-// Hold-to-talk recording that produces a file URI to upload to
-// POST /assistant/voice. Uses expo-av per ARCHITECTURE, even though newer Expo
-// SDKs favor expo-audio — expo-av is the documented, SDK-52-bundled choice.
+// Hold-to-talk recording that produces a file to upload to POST
+// /assistant/voice. ARCHITECTURE names expo-av; it was removed from recent
+// Expo SDKs, so this uses its replacement, expo-audio (SDK 57, works in Expo Go).
+// Press-in: start(). Release: stop() returns the file part for askVoice().
 
-import { Audio } from "expo-av";
+import {
+  getRecordingPermissionsAsync,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
+import { useRef } from "react";
 
 import type { UploadFile } from "../api/client";
 
-let activeRecording: Audio.Recording | null = null;
+/** Shorter than this is almost always an accidental tap. */
+const MIN_RECORDING_MS = 600;
 
-/** Request mic permission and configure the audio mode for recording. */
-export async function prepare(): Promise<boolean> {
-  const { granted } = await Audio.requestPermissionsAsync();
-  if (!granted) return false;
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: true,
-    playsInSilentModeIOS: true,
-  });
-  return true;
+export function useHoldToTalk() {
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const { isRecording } = useAudioRecorderState(recorder);
+  const starting = useRef<Promise<void> | null>(null);
+  const startedAt = useRef(0);
+
+  async function start(): Promise<void> {
+    startedAt.current = Date.now();
+    starting.current = (async () => {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    })();
+    await starting.current;
+  }
+
+  /**
+   * Stop and return a file part ready for `askVoice`, or null if it was too
+   * short. HIGH_QUALITY records m4a (AAC) on both platforms.
+   */
+  async function stop(): Promise<UploadFile | null> {
+    // a quick tap can release before recording has started; wait for it first
+    await starting.current?.catch(() => {});
+    starting.current = null;
+    await recorder.stop();
+    await setAudioModeAsync({ allowsRecording: false });
+    if (Date.now() - startedAt.current < MIN_RECORDING_MS || !recorder.uri) return null;
+    return { uri: recorder.uri, name: "question.m4a", type: "audio/m4a" };
+  }
+
+  return { isRecording, start, stop };
 }
 
-/** Start recording. No-op guard if one is already running. */
-export async function startRecording(): Promise<void> {
-  if (activeRecording) return;
-  const { recording } = await Audio.Recording.createAsync(
-    Audio.RecordingOptionsPresets.HIGH_QUALITY,
-  );
-  activeRecording = recording;
+/** Ask for the microphone. The caller explains why before asking. */
+export async function ensureMicPermission(): Promise<boolean> {
+  const { granted } = await requestRecordingPermissionsAsync();
+  return granted;
 }
 
-/**
- * Stop recording and return a file part ready for `uploadFile`/`askVoice`,
- * or null if nothing was recording. The MIME/extension follow the preset
- * (m4a on both platforms by default).
- */
-export async function stopRecording(): Promise<UploadFile | null> {
-  if (!activeRecording) return null;
-  const recording = activeRecording;
-  activeRecording = null;
-  await recording.stopAndUnloadAsync();
-  const uri = recording.getURI();
-  if (!uri) return null;
-  return { uri, name: "question.m4a", type: "audio/m4a" };
-}
-
-/** Whether a recording is currently in progress. */
-export function isRecording(): boolean {
-  return activeRecording !== null;
+/** True if permission was already given earlier (no prompt). */
+export async function hasMicPermission(): Promise<boolean> {
+  const { granted } = await getRecordingPermissionsAsync();
+  return granted;
 }

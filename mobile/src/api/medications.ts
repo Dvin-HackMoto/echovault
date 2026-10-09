@@ -5,6 +5,7 @@
 import { del, get, post, put } from "./client";
 import type {
   ConfirmedBy,
+  Dose,
   MedStatus,
   Medication,
   MedicationLog,
@@ -38,9 +39,12 @@ export function deleteMedication(id: string): Promise<void> {
   return del<void>(`/medications/${id}`);
 }
 
-/** Today's due logs (generated unconfirmed by the hub). GET /medications/logs/today. */
-export function todayMedicationLogs(): Promise<MedicationLog[]> {
-  return get<MedicationLog[]>("/medications/logs/today");
+/**
+ * Today's doses: the logs the hub generates (unconfirmed) joined to their
+ * medicine name, dose, instructions and photo. GET /medications/today.
+ */
+export function todayMedicationLogs(): Promise<Dose[]> {
+  return get<Dose[]>("/medications/today");
 }
 
 /**
@@ -52,7 +56,7 @@ export function logMedicationStatus(
   status: MedStatus,
   confirmedBy: ConfirmedBy,
 ): Promise<MedicationLog> {
-  return post<MedicationLog>(`/medications/logs/${logId}`, {
+  return post<MedicationLog>(`/medications/logs/${encodeURIComponent(logId)}`, {
     status,
     confirmed_by: confirmedBy,
   });
