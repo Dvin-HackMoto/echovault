@@ -169,12 +169,16 @@ def resolve_conflict(conn, keep_id, other_id, other_outcome):
         (constants.TRUST_VERIFIED, keep_id),
     )
     if other_outcome == constants.VALIDITY_ARCHIVED:
-        # Archive: mark validity='archived' and drop the conflicting trust back
-        # to 'unverified' (not a live claim, not falsely 'outdated').
+        # Archive: mark validity='archived' and set trust='outdated'. A resolved
+        # conflict loser is NOT a live claim and must NOT re-enter the caregiver
+        # review queue. The dashboard's unverified_memories query filters on
+        # trust only (no validity clause), so trust='unverified' would re-surface
+        # it there; trust='outdated' keeps it out of the unverified list and only
+        # briefly in the outdated list (which ages out after 7 days).
         conn.execute(
             "UPDATE memories SET trust = ?, validity = ?, conflicts_with = NULL, "
             "updated_at = datetime('now','localtime') WHERE id = ?",
-            (constants.TRUST_UNVERIFIED, constants.VALIDITY_ARCHIVED, other_id),
+            (constants.TRUST_OUTDATED, constants.VALIDITY_ARCHIVED, other_id),
         )
     else:
         conn.execute(

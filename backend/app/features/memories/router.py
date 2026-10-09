@@ -157,14 +157,18 @@ def update_memory(
 
     updated = repository.update_memory(conn, memory_id, payload)
 
-    # MEM-4 teardown: if a conflicting row is archived or marked outdated via a
-    # normal update, resolve the pair and restore the other row to verified.
+    # MEM-4 handling. A row being archived or outdated is leaving active use, so
+    # it must NEVER be (re-)flagged as conflicting.
     archived = payload.get("validity") == constants.VALIDITY_ARCHIVED
     outdated = payload.get("trust") == constants.TRUST_OUTDATED
-    if before["conflicts_with"] and (archived or outdated):
-        service.clear_conflict(conn, memory_id)
+    if archived or outdated:
+        # If it was still half of a conflict, tear the pair down and restore the
+        # other row to verified. (If the conflict was already resolved — e.g. the
+        # partner was verified first — there is nothing to tear down.)
+        if before["conflicts_with"]:
+            service.clear_conflict(conn, memory_id)
     else:
-        # Re-evaluate conflicts after an edit (text/person/category may change).
+        # Genuine edit (text/person/category may change) — re-evaluate conflicts.
         service.flag_conflicts(conn, memory_id)
 
     return repository.get_memory(conn, memory_id)

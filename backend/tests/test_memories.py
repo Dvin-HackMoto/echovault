@@ -426,3 +426,73 @@ def test_create_with_valid_person_id_stored(client, caregiver_headers, db_conn):
     )
     assert resp.status_code == 200
     assert resp.json()["person_id"] == person["id"]
+
+
+# ───────────────── MEM-4 dashboard-connection regressions ──────────────────
+# These guard two fixes: a resolved/verified conflict must NOT re-surface in the
+# caregiver dashboard. The dashboard's unverified_memories query filters on
+# trust only (no validity clause), so an archived loser left at trust='unverified'
+# would wrongly reappear in the review queue.
+
+
+def _make_conflict_pair(client, caregiver_headers, db_conn):
+    """Create two same-person/category/overlapping memories so the second POST
+    flags both as conflicting. Returns (first_id, second_id)."""
+    person = make_person(db_conn)
+    first = make_memory(
+        db_conn,
+        content="Breakfast is at 7am",
+        category="routine",
+        person_id=person["id"],
+        trust="unverified",
+    )
+    second = client.post(
+        "/memories",
+        json={
+            "content": "Breakfast is at 8am",
+            "category": "routine",
+            "person_id": person["id"],
+        },
+        headers=caregiver_headers,
+    ).json()
+    return first["id"], second["id"]
+
+
+def test_resolve_archive_loser_not_in_unverified(client, caregiver_headers, db_conn):
+    first_id, second_id = _make_conflict_pair(client, caregiver_headers, db_conn)
+    # Resolve via the dedicated endpoint: keep first, archive second.
+    client.post(
+        "/memories/{}/resolve".format(first_id),
+        json={"other_outcome": "archived"},
+        headers=caregiver_headers,
+    )
+    loser = db_conn.execute(
+        "SELECT trust, validity, conflicts_with FROM memories WHERE id = ?",
+        (second_id,),
+    ).fetchone()
+    assert loser["validity"] == "archived"
+    assert loser["conflicts_with"] is None
+    # Must not sit in the dashboard's unverified review queue.
+    assert loser["trust"] != "unverified"
+    # And must not appear in the dashboard unverified list.
+    unverified = db_conn.execute(
+        "SELECT id FROM memories WHERE trust = 'unverified'"
+    ).fetchall()
+    assert second_id not in [r["id"] for r in unverified]
+
+
+def test_bare_verify_cleans_up_conflict_partner(client, caregiver_headers, db_conn):
+    first_id, second_id = _make_conflict_pair(client, caregiver_headers, db_conn)
+    # Bare verify on one half of the pair.
+    client.post("/memories/{}/verify".format(first_id), headers=caregiver_headers)
+    verified = db_conn.execute(
+        "SELECT trust, conflicts_with FROM memories WHERE id = ?", (first_id,)
+    ).fetchone()
+    partner = db_conn.execute(
+        "SELECT trust, conflicts_with FROM memories WHERE id = ?", (second_id,)
+    ).fetchone()
+    assert verified["trust"] == "verified"
+    assert verified["conflicts_with"] is None
+    # Partner must NOT be left dangling as a half-pair (conflicting -> verified).
+    assert partner["conflicts_with"] is None
+    assert partner["trust"] != "conflicting"

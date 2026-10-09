@@ -153,18 +153,35 @@ def delete_memory(conn, memory_id):
 
 def verify_memory(conn, memory_id, caregiver_id):
     """MEM-2: set trust='verified', verified_by, verified_at, and clear
-    conflicts_with (resolving a conflicting row). Returns the row, or None."""
+    conflicts_with (resolving a conflicting row). Returns the row, or None.
+
+    If the memory was half of a conflicting pair, the PARTNER is also cleaned
+    up: its conflicts_with is cleared and, if it was still 'conflicting', it
+    falls back to 'unverified'. Otherwise a bare verify would leave the partner
+    stranded as a half-pair (conflicting, pointing at a now-verified row) that
+    the caregiver dashboard would surface as a broken conflict.
+    """
     row = conn.execute(
-        "SELECT 1 FROM memories WHERE id = ?", (memory_id,)
+        "SELECT conflicts_with FROM memories WHERE id = ?", (memory_id,)
     ).fetchone()
     if row is None:
         return None
+    partner_id = row["conflicts_with"]
     conn.execute(
         "UPDATE memories SET trust = ?, verified_by = ?, "
         "verified_at = datetime('now','localtime'), conflicts_with = NULL, "
         "updated_at = datetime('now','localtime') WHERE id = ?",
         (constants.TRUST_VERIFIED, caregiver_id, memory_id),
     )
+    if partner_id:
+        # Only demote the partner's trust if it is still 'conflicting'; never
+        # clobber a partner that moved on to another state.
+        conn.execute(
+            "UPDATE memories SET conflicts_with = NULL, "
+            "trust = CASE WHEN trust = ? THEN ? ELSE trust END, "
+            "updated_at = datetime('now','localtime') WHERE id = ?",
+            (constants.TRUST_CONFLICTING, constants.TRUST_UNVERIFIED, partner_id),
+        )
     conn.commit()
     return dict(
         conn.execute("SELECT * FROM memories WHERE id = ?", (memory_id,)).fetchone()
