@@ -1,22 +1,17 @@
 // EchoVault mobile — caregiver backup / restore (CGV-8, REAL backend).
 //
-// Export (REAL, GET /backup/export): resolve the absolute export URL via
-// src/api/backup.exportBackupUrl(), stream the zip to the app's document
-// directory with expo-file-system, then offer it through the OS share sheet
-// with expo-sharing so the caregiver can file it somewhere safe.
+// Export (GET /backup/export): src/api/backup.exportBackupRequest() gives the
+// URL and the caregiver's role headers; the zip is streamed to the app's
+// document directory with expo-file-system, then offered through the OS share
+// sheet with expo-sharing so the caregiver can file it somewhere safe.
 //
-// Import (REAL, POST /backup/import): pick a .zip with expo-document-picker,
-// confirm with an explicit "this REPLACES current data" Alert, then upload the
-// file via src/api/backup.importBackup(file, true). Import is ADMIN ONLY: the
-// backend wraps it in require_admin, so we read the caregiver's access_level
-// (auth.me()) and disable + explain the control for non-admins; a 403 from the
-// server is surfaced the same way.
-//
-// NOTE: auth is a STUBBED backend module — GET /auth/me returns 404 until the
-// Auth module (AUTH-2) lands. We treat an unknown access level as non-admin and
-// show the "needs an admin caregiver" message rather than crashing.
-//
-// All network I/O goes through src/api/* — there is no raw fetch here.
+// Import (POST /backup/import): pick a .zip with expo-document-picker, confirm
+// with an explicit "this REPLACES current data" Alert, then upload the file via
+// src/api/backup.importBackup(file, true). Import is ADMIN ONLY: the backend
+// wraps it in require_admin, so we read the caregiver's access_level
+// (GET /auth/me) and disable + explain the control for non-admins; a 403 from
+// the server is surfaced the same way. If /auth/me fails (hub unreachable) the
+// import stays closed.
 
 import * as DocumentPicker from "expo-document-picker";
 // SDK 57 moved documentDirectory / downloadAsync to the legacy entry point (as in src/platform.ts)
@@ -27,7 +22,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "re
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { me } from "../../src/api/auth";
-import { exportBackupUrl, importBackup } from "../../src/api/backup";
+import { exportBackupRequest, importBackup } from "../../src/api/backup";
 import { ApiError, type UploadFile } from "../../src/api/client";
 import BigButton from "../../src/components/BigButton";
 import { useTheme } from "../../src/theme-context";
@@ -37,7 +32,7 @@ type AdminState = "checking" | "admin" | "not-admin";
 export default function CaregiverBackup() {
   const theme = useTheme();
 
-  // Admin gating for import. Unknown (stub/404/error) is treated as not-admin.
+  // Admin gating for import. Unknown (error) is treated as not-admin.
   const [adminState, setAdminState] = useState<AdminState>("checking");
 
   const [exporting, setExporting] = useState(false);
@@ -54,8 +49,7 @@ export default function CaregiverBackup() {
       const caregiver = await me();
       setAdminState(caregiver?.access_level === "admin" ? "admin" : "not-admin");
     } catch {
-      // me() may 404 while auth is a stub, or fail on the network — either way
-      // we cannot confirm admin, so gate the import closed.
+      // we cannot confirm admin (e.g. hub unreachable), so gate the import closed
       setAdminState("not-admin");
     }
   }, []);
@@ -71,11 +65,12 @@ export default function CaregiverBackup() {
     setExportMsg(null);
     setExporting(true);
     try {
-      const url = await exportBackupUrl();
+      const { url, headers } = await exportBackupRequest();
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const target = `${FileSystem.documentDirectory}echovault-backup-${stamp}.zip`;
 
-      const result = await FileSystem.downloadAsync(url, target);
+      // the hub only exports to a signed-in caregiver, so send the role headers
+      const result = await FileSystem.downloadAsync(url, target, { headers });
       if (result.status < 200 || result.status >= 300) {
         setExportErr(`The hub returned ${result.status} while exporting.`);
         return;

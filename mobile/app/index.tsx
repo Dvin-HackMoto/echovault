@@ -8,14 +8,10 @@
 //
 // Once a hub URL exists, show the mode picker:
 //   Patient  -> setRole('patient')   -> open the (patient) group directly
-//   Caregiver-> setRole('caregiver') -> go to the (caregiver) PIN placeholder
+//   Caregiver-> setRole('caregiver') -> the (caregiver) group, which asks for the PIN
 // The hub IP is always changeable via "Change hub IP".
 //
-// Module 14 additions:
-//   - "Use demo data (no hub)" and a "Hub only" switch set the data mode
-//     (src/api/routes.ts): "auto" uses the hub for every route it has and demo
-//     data, labelled "Demo", for the rest; "hub" never uses demo data.
-//   - Once Patient is picked, later launches open the patient home directly;
+// Module 14 addition: once Patient is picked, later launches open the patient home directly;
 //     its "Hub settings" link comes back here with ?setup=1.
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -26,24 +22,20 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { endCaregiverSession } from "../src/api/auth";
 import BigButton from "../src/components/BigButton";
-import { Notice } from "../src/components/Notice";
 import {
   checkHealth,
-  getDataMode,
   getHubUrl,
   getRole,
-  setDataMode,
   setHubUrl,
   setRole,
-  type DataMode,
 } from "../src/api/client";
 import { useTheme } from "../src/theme-context";
 
@@ -85,7 +77,6 @@ export default function Index() {
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [hubUrl, setHubUrlState] = useState<string | null>(null);
-  const [mode, setMode] = useState<DataMode>("auto");
   const [input, setInput] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +85,10 @@ export default function Index() {
   // reopening patient mode.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getHubUrl(), getDataMode(), getRole()]).then(([saved, savedMode, role]) => {
+    Promise.all([getHubUrl(), getRole()]).then(([saved, role]) => {
       if (cancelled) return;
       setHubUrlState(saved);
-      setMode(savedMode);
-      const ready = Boolean(saved) || savedMode === "demo";
+      const ready = Boolean(saved);
       if (ready && role === "patient" && !setup) {
         setPhase("patient");
       } else if (ready && !setup) {
@@ -127,38 +117,27 @@ export default function Index() {
       setError("Couldn't reach the hub at that address. Check it's on and on the same Wi-Fi, then try again.");
       return;
     }
-    const nextMode: DataMode = mode === "hub" ? "hub" : "auto";
     await setHubUrl(normalized);
-    await setDataMode(nextMode);
     setHubUrlState(normalized);
-    setMode(nextMode);
     setInput("");
     setPhase("picker");
   }
 
-  async function onUseDemo() {
-    setError(null);
-    await setDataMode("demo");
-    setMode("demo");
-    setPhase("picker");
-  }
-
   async function onPickPatient() {
-    await setRole("patient");
+    // handing the phone to the patient signs the caregiver out (sets role patient)
+    await endCaregiverSession();
     router.replace("/(patient)/home");
   }
 
   async function onPickCaregiver() {
     await setRole("caregiver");
-    // Module 16 owns the real PIN flow; route to the (caregiver) group entry,
-    // which is a clearly-marked PIN placeholder for now.
+    // the (caregiver) layout asks for the PIN before showing any screen
     router.replace("/(caregiver)/dashboard");
   }
 
   function onChangeHub() {
     setError(null);
     setInput(hubUrl?.replace(/^https?:\/\//, "") ?? "");
-    if (mode === "demo") setMode("auto");
     setPhase("setup");
   }
 
@@ -218,23 +197,12 @@ export default function Index() {
               {error ? (
                 <Text style={{ color: theme.colors.danger, fontSize: theme.fontSizes.body }}>{error}</Text>
               ) : null}
-              <View style={[styles.row, { gap: theme.spacing.md }]}>
-                <Switch
-                  value={mode === "hub"}
-                  onValueChange={(on) => setMode(on ? "hub" : "auto")}
-                  accessibilityLabel="Hub only, never use demo data"
-                />
-                <Text style={{ flex: 1, color: theme.colors.fg, fontSize: theme.fontSizes.body }}>
-                  Hub only (never use demo data)
-                </Text>
-              </View>
               <BigButton
                 label={checking ? "Checking…" : "Connect"}
                 onPress={onSaveHub}
                 loading={checking}
                 theme={theme}
               />
-              <BigButton label="Use demo data (no hub)" variant="secondary" onPress={onUseDemo} theme={theme} />
             </View>
           ) : (
             <View style={{ gap: theme.spacing.md }}>
@@ -243,16 +211,9 @@ export default function Index() {
               </Text>
               <BigButton label="Patient" onPress={onPickPatient} theme={theme} />
               <BigButton label="Caregiver" onPress={onPickCaregiver} theme={theme} />
-              {mode === "demo" ? (
-                <Notice tone="demo" text="Using demo data. No hub is needed." />
-              ) : (
-                <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.caption, marginTop: theme.spacing.sm }}>
-                  Connected to {hubUrl}
-                  {mode === "hub"
-                    ? ". Only the hub's data is used."
-                    : `. Parts the hub does not have yet use demo data, marked "Demo".`}
-                </Text>
-              )}
+              <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.caption, marginTop: theme.spacing.sm }}>
+                Connected to {hubUrl}
+              </Text>
               <BigButton label="Change hub IP" variant="danger" onPress={onChangeHub} theme={theme} />
             </View>
           )}

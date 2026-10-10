@@ -6,25 +6,22 @@
 //       one+ dosing times. Each time is a time_of_day ('HH:MM') + days ('daily'
 //       or a weekday multiselect joined as 'MO,WE,FR'). The client exposes NO
 //       standalone medication_times endpoint, so the times ride inside the
-//       create/update payload (see MedicationFormPayload below). Edit via
+//       create/update payload, and the hub replaces them. Edit via
 //       updateMedication, remove via deleteMedication behind a confirm.
 //   (b) Review today's doses — load via todayMedicationLogs(); each dose shows
 //       its status (unconfirmed/taken/skipped) and confirmed_by (none/patient/
 //       caregiver). The caregiver can confirm or correct a dose via
 //       logMedicationStatus(logId, 'taken'|'skipped', 'caregiver').
 //
-// Every network call goes through src/api/* — never a raw fetch.
-//
-// BACKEND IS A STUB: the medications module routes 404 until the Medications
-// module (MED-3) lands. This screen is wired to the documented contract and
-// renders the ApiError message (incl. 404) in its error state instead of
-// crashing. The times wiring (sent inside the payload) also awaits MED-3.
+// Every network call goes through src/api/* — never a raw fetch. Errors from the
+// hub (validation, 403 for a viewer) are shown as the hub's message.
 
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -35,7 +32,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError } from "../../src/api/client";
+import * as ImagePicker from "expo-image-picker";
+
+import { ApiError, getHubUrl, photoUri } from "../../src/api/client";
 import {
   createMedication,
   deleteMedication,
@@ -43,12 +42,14 @@ import {
   logMedicationStatus,
   todayMedicationLogs,
   updateMedication,
+  uploadMedicationPhoto,
   type MedicationInput,
+  type MedicationWithTimes,
 } from "../../src/api/medications";
 import BigButton from "../../src/components/BigButton";
 import type { Theme } from "../../src/theme";
 import { useTheme } from "../../src/theme-context";
-import type { MedStatus, Medication, MedicationLog } from "../../src/types";
+import type { MedStatus, MedicationLog, MedicationTime } from "../../src/types";
 import { useCaregiverGate } from "./_layout";
 
 type Phase = "loading" | "error" | "ready";
@@ -71,24 +72,29 @@ interface TimeDraft {
   weekdays: string[]; // ['MO','WE','FR'] when !everyDay
 }
 
-/**
- * The create/update payload we actually send. There is NO standalone
- * medication_times endpoint, so the times are nested inside the medication
- * payload. This shape extends MedicationInput with that `times` array; the
- * backend wiring for it awaits MED-3, so we cast to MedicationInput at the API
- * boundary (createMedication/updateMedication only type the base fields).
- */
-interface MedicationFormPayload extends MedicationInput {
-  times: { time_of_day: string; days: string }[];
+/** A saved dosing time as the form edits it. */
+function toDraft(time: MedicationTime): TimeDraft {
+  const everyDay = !time.days || time.days === "daily";
+  return { timeOfDay: time.time_of_day, everyDay, weekdays: everyDay ? [] : time.days.split(",") };
+}
+
+function draftsFor(med: MedicationWithTimes | null): TimeDraft[] {
+  return med?.times?.length ? med.times.map(toDraft) : [{ timeOfDay: "08:00", everyDay: true, weekdays: [] }];
+}
+
+interface PickedPhoto {
+  uri: string;
+  name: string;
+  type: string;
 }
 
 export default function CaregiverMedications() {
   const theme = useTheme();
-  const { leaveCaregiverMode } = useCaregiverGate();
+  const { leaveCaregiverMode, can } = useCaregiverGate();
 
   // Section (a) state.
   const [medsPhase, setMedsPhase] = useState<Phase>("loading");
-  const [meds, setMeds] = useState<Medication[]>([]);
+  const [meds, setMeds] = useState<MedicationWithTimes[]>([]);
   const [medsError, setMedsError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -100,7 +106,7 @@ export default function CaregiverMedications() {
 
   // Inline Add/Edit form. `editing` null + closed form => hidden.
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Medication | null>(null);
+  const [editing, setEditing] = useState<MedicationWithTimes | null>(null);
 
   const loadMeds = useCallback(async () => {
     setMedsPhase("loading");
@@ -129,7 +135,7 @@ export default function CaregiverMedications() {
   }, []);
 
   const loadAll = useCallback(async () => {
-    // Both sections load independently so one stub 404 doesn't blank the other.
+    // Both sections load independently so one failure doesn't blank the other.
     await Promise.all([loadMeds(), loadLogs()]);
   }, [loadMeds, loadLogs]);
 
@@ -145,7 +151,7 @@ export default function CaregiverMedications() {
     setFormOpen(true);
   }
 
-  function openEdit(med: Medication) {
+  function openEdit(med: MedicationWithTimes) {
     setEditing(med);
     setFormOpen(true);
   }
@@ -160,7 +166,7 @@ export default function CaregiverMedications() {
     await loadMeds();
   }
 
-  function onDelete(med: Medication) {
+  function onDelete(med: MedicationWithTimes) {
     Alert.alert(
       "Remove medication",
       `Remove "${med.name}"? This can't be undone.`,
@@ -219,7 +225,7 @@ export default function CaregiverMedications() {
         {/* ───────────────── Section (a): Manage meds ───────────────── */}
         <SectionHeader title="Manage medications" theme={theme} />
 
-        <BigButton label="Add medication" onPress={openAdd} theme={theme} />
+        {can("create") ? <BigButton label="Add medication" onPress={openAdd} theme={theme} /> : null}
 
         {medsPhase === "loading" ? (
           <View style={[styles.center, { padding: theme.spacing.xl }]}>
@@ -329,12 +335,13 @@ function MedicationRow({
   onEdit,
   onDelete,
 }: {
-  med: Medication;
+  med: MedicationWithTimes;
   theme: Theme;
   busy: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { can } = useCaregiverGate();
   return (
     <View
       style={{
@@ -358,8 +365,8 @@ function MedicationRow({
         <ActivityIndicator color={theme.colors.primary} />
       ) : (
         <View style={styles.actionRow}>
-          <ActionButton label="Edit" theme={theme} onPress={onEdit} />
-          <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} />
+          {can("update") ? <ActionButton label="Edit" theme={theme} onPress={onEdit} /> : null}
+          {can("delete") ? <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} /> : null}
         </View>
       )}
     </View>
@@ -381,6 +388,7 @@ function DoseRow({
   onConfirm: () => void;
   onSkip: () => void;
 }) {
+  const { can } = useCaregiverGate();
   return (
     <View
       style={{
@@ -406,8 +414,8 @@ function DoseRow({
         <ActivityIndicator color={theme.colors.primary} />
       ) : (
         <View style={styles.actionRow}>
-          <ActionButton label="Mark taken" theme={theme} onPress={onConfirm} />
-          <ActionButton label="Mark skipped" theme={theme} variant="danger" onPress={onSkip} />
+          {can("update") ? <ActionButton label="Mark taken" theme={theme} onPress={onConfirm} /> : null}
+          {can("update") ? <ActionButton label="Mark skipped" theme={theme} variant="danger" onPress={onSkip} /> : null}
         </View>
       )}
     </View>
@@ -423,7 +431,7 @@ function MedicationForm({
   onSaved,
 }: {
   theme: Theme;
-  editing: Medication | null;
+  editing: MedicationWithTimes | null;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -432,26 +440,42 @@ function MedicationForm({
   const [name, setName] = useState(editing?.name ?? "");
   const [dose, setDose] = useState(editing?.dose ?? "");
   const [instructions, setInstructions] = useState(editing?.instructions ?? "");
-  // Optional photo: a stored path is editable as a plain reference here; the
-  // picker-based upload mirrors People and can be added when MED-3 lands.
-  const [photoPath, setPhotoPath] = useState(editing?.photo_path ?? "");
-  // Start with one empty daily time so the "one+ times" rule is easy to meet.
-  const [times, setTimes] = useState<TimeDraft[]>([
-    { timeOfDay: "08:00", everyDay: true, weekdays: [] },
-  ]);
+  // Optional pill/box photo, uploaded after the medicine is saved (multipart).
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  // Saved times are pre-filled; a new medicine starts with one daily time.
+  const [times, setTimes] = useState<TimeDraft[]>(draftsFor(editing));
   const [saving, setSaving] = useState(false);
+  const [hubUrl, setHubUrlState] = useState<string | null>(null);
+
+  useEffect(() => {
+    getHubUrl().then(setHubUrlState).catch(() => setHubUrlState(null));
+  }, []);
 
   // Reset local state whenever the form is reused for a different medication.
-  // NOTE: existing times are not pre-filled because listMedications() returns
-  // meds without their times and there is no standalone times endpoint; the
-  // detail-with-times load awaits MED-3. Editing re-enters the time drafts.
   useEffect(() => {
     setName(editing?.name ?? "");
     setDose(editing?.dose ?? "");
     setInstructions(editing?.instructions ?? "");
-    setPhotoPath(editing?.photo_path ?? "");
-    setTimes([{ timeOfDay: "08:00", everyDay: true, weekdays: [] }]);
+    setPhoto(null);
+    setTimes(draftsFor(editing));
   }, [editing]);
+
+  async function pickPhoto(fromCamera: boolean) {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission needed", fromCamera ? "Allow camera access to take a photo." : "Allow photo access to pick an image.");
+      return;
+    }
+    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], allowsEditing: true, quality: 0.7 };
+    const result = fromCamera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    const asset = !result.canceled ? result.assets[0] : null;
+    if (asset) {
+      const type = asset.mimeType ?? "image/jpeg";
+      setPhoto({ uri: asset.uri, name: asset.fileName ?? `medicine-${Date.now()}.${type.split("/")[1] ?? "jpg"}`, type });
+    }
+  }
 
   function updateTime(index: number, patch: Partial<TimeDraft>) {
     setTimes((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)));
@@ -508,24 +532,19 @@ function MedicationForm({
         : WEEKDAYS.map((d) => d.code).filter((c) => t.weekdays.includes(c)).join(","),
     }));
 
-    // The times ride inside the medication payload — no standalone endpoint.
-    const payload: MedicationFormPayload = {
+    // The times ride inside the medication payload — the hub replaces them.
+    const payload: MedicationInput = {
       name: trimmedName,
       dose: trimmedDose,
       instructions: emptyToNull(instructions),
-      photo_path: emptyToNull(photoPath),
       times: timesPayload,
     };
 
     setSaving(true);
     try {
-      // createMedication/updateMedication type only the base MedicationInput
-      // fields; cast so the nested `times` reach the backend once MED-3 reads
-      // them. Documented contract — safe at the API boundary.
-      if (isNew) {
-        await createMedication(payload as MedicationInput);
-      } else {
-        await updateMedication(editing!.id, payload as MedicationInput);
+      const saved = isNew ? await createMedication(payload) : await updateMedication(editing!.id, payload);
+      if (photo) {
+        await uploadMedicationPhoto(saved.id, photo);
       }
       onSaved();
     } catch (err) {
@@ -570,15 +589,23 @@ function MedicationForm({
           />
         </Field>
 
-        {/* Photo (optional) — stored path reference; picker upload awaits MED-3. */}
-        <Field label="Photo path (optional)" theme={theme}>
-          <Input
-            value={photoPath}
-            onChangeText={setPhotoPath}
-            placeholder="Stored photo path"
-            editable={!saving}
-            theme={theme}
-          />
+        {/* Photo (optional): shown on the patient's medicine card. */}
+        <Field label="Pill or box photo (optional)" theme={theme}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
+            {photo?.uri || photoUri(hubUrl, editing?.photo_url, editing?.photo_path) ? (
+              <Image
+                source={{ uri: photo?.uri ?? photoUri(hubUrl, editing?.photo_url, editing?.photo_path)! }}
+                accessibilityLabel="Medicine photo"
+                style={{ width: 72, height: 72, borderRadius: theme.radii.md }}
+              />
+            ) : (
+              <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.caption }}>No photo</Text>
+            )}
+            <View style={{ flex: 1, gap: theme.spacing.sm }}>
+              <ActionButton label="Camera" theme={theme} onPress={() => void pickPhoto(true)} />
+              <ActionButton label="Gallery" theme={theme} onPress={() => void pickPhoto(false)} />
+            </View>
+          </View>
         </Field>
 
         {/* Dosing times — one or more. */}

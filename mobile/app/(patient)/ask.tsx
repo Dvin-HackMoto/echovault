@@ -9,7 +9,7 @@ import { ActivityIndicator, Alert, Platform, ScrollView, Text, TextInput, View }
 import { ask, askVoice, type AssistantAnswer } from "../../src/api/assistant";
 import BigButton from "../../src/components/BigButton";
 import MicButton from "../../src/components/MicButton";
-import { DemoTag, Notice } from "../../src/components/Notice";
+import { Notice } from "../../src/components/Notice";
 import PersonCard from "../../src/components/PersonCard";
 import { hubMessage, isUnreachable } from "../../src/patient/cached";
 import { usePatient } from "../../src/patient/context";
@@ -146,7 +146,6 @@ export default function Ask() {
       contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 200 }}
       keyboardShouldPersistTaps="handled"
     >
-      <DemoTag feature="assistant" />
 
       {phase === "thinking" ? (
         <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md }}>

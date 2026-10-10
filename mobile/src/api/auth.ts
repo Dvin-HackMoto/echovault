@@ -93,10 +93,6 @@ export function pinErrorMessage(err: unknown): string {
 /** On a 409 (shared PIN): the caregivers to choose from, else null. */
 export function sharedPinCaregivers(err: unknown): { id: string; name: string }[] | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
-  try {
-    const detail = JSON.parse(err.message) as { detail?: { caregivers?: { id: string; name: string }[] } };
-    return detail.detail?.caregivers ?? null;
-  } catch {
-    return null;
-  }
+  const caregivers = (err.detail as { caregivers?: unknown } | undefined)?.caregivers;
+  return Array.isArray(caregivers) ? (caregivers as { id: string; name: string }[]) : null;
 }

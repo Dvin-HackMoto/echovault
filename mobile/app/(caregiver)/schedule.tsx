@@ -15,9 +15,8 @@
 // deleteScheduleItem (remove behind a confirm). Every network call goes
 // through src/api/* — never a raw fetch.
 //
-// BACKEND IS A STUB: the schedule module routes 404 until the Schedule module
-// (SCH-1) lands. This screen is wired to the documented contract and renders
-// the ApiError message (incl. 404) in its error state instead of crashing.
+// Hub errors (validation, 403 for a viewer or a non-admin delete) are shown as
+// the hub's message; buttons this caregiver may not use are hidden.
 
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -72,7 +71,7 @@ const WEEKDAYS = [
 
 export default function CaregiverSchedule() {
   const theme = useTheme();
-  const { leaveCaregiverMode } = useCaregiverGate();
+  const { leaveCaregiverMode, can } = useCaregiverGate();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -166,7 +165,7 @@ export default function CaregiverSchedule() {
           Schedule
         </Text>
 
-        <BigButton label="Add schedule item" onPress={openAdd} theme={theme} />
+        {can("create") ? <BigButton label="Add schedule item" onPress={openAdd} theme={theme} /> : null}
 
         {phase === "loading" ? (
           <View style={[styles.center, { padding: theme.spacing.xl }]}>
@@ -245,6 +244,7 @@ function ScheduleRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { can } = useCaregiverGate();
   const person = people.find((p) => p.id === item.person_id) ?? null;
   return (
     <View
@@ -278,8 +278,8 @@ function ScheduleRow({
         <ActivityIndicator color={theme.colors.primary} />
       ) : (
         <View style={styles.actionRow}>
-          <ActionButton label="Edit" theme={theme} onPress={onEdit} />
-          <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} />
+          {can("update") ? <ActionButton label="Edit" theme={theme} onPress={onEdit} /> : null}
+          {can("delete") ? <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} /> : null}
         </View>
       )}
     </View>

@@ -3,9 +3,8 @@
 // Lists everyone with the shared PersonCard (photos resolved from the hub via
 // getHubUrl()), and an inline Add/Edit modal form with: name (required),
 // nickname, relationship (required), notes (multiline) and an is_caregiver
-// toggle. At most ONE person may be the caregiver — enabling it on one clears
-// it on any other via updatePerson(otherId, { is_caregiver: 0 }). SQLite
-// booleans are sent as 1 | 0.
+// toggle. At most ONE person may be the caregiver — the hub clears the flag on
+// everyone else when it is set on one. SQLite booleans are sent as 1 | 0.
 //
 // Photo: the caregiver picks from the camera (ImagePicker.launchCameraAsync) or
 // gallery (ImagePicker.launchImageLibraryAsync); the picked asset becomes an
@@ -14,9 +13,8 @@
 // the returned id. Verify sets trust='verified'; remove confirms then deletes.
 // Every network call goes through src/api/* — never a raw fetch.
 //
-// BACKEND IS A STUB: the people module routes 404 until the People module
-// (PPL-2) lands. This screen is wired to the documented contract and renders
-// the ApiError message (incl. 404) in its error state instead of crashing.
+// Hub errors (validation, 403 for a viewer or a non-admin delete) are shown as
+// the hub's message; buttons this caregiver may not use are hidden.
 
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
@@ -36,7 +34,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, getHubUrl, type UploadFile } from "../../src/api/client";
+import { ApiError, getHubUrl, photoUri, type UploadFile } from "../../src/api/client";
 import {
   createPerson,
   deletePerson,
@@ -63,7 +61,7 @@ interface PickedPhoto {
 
 export default function CaregiverPeople() {
   const theme = useTheme();
-  const { leaveCaregiverMode } = useCaregiverGate();
+  const { leaveCaregiverMode, can } = useCaregiverGate();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [people, setPeople] = useState<Person[]>([]);
@@ -168,7 +166,7 @@ export default function CaregiverPeople() {
           People
         </Text>
 
-        <BigButton label="Add person" onPress={openAdd} theme={theme} />
+        {can("create") ? <BigButton label="Add person" onPress={openAdd} theme={theme} /> : null}
 
         {phase === "loading" ? (
           <View style={[styles.center, { padding: theme.spacing.xl }]}>
@@ -251,6 +249,7 @@ function PersonRow({
   onVerify: () => void;
   onDelete: () => void;
 }) {
+  const { can } = useCaregiverGate();
   return (
     <View style={{ gap: theme.spacing.sm }}>
       <PersonCard person={person} hubUrl={hubUrl} theme={theme} />
@@ -270,11 +269,11 @@ function PersonRow({
         <ActivityIndicator color={theme.colors.primary} />
       ) : (
         <View style={styles.actionRow}>
-          <ActionButton label="Edit" theme={theme} onPress={onEdit} />
-          {person.trust !== "verified" ? (
+          {can("update") ? <ActionButton label="Edit" theme={theme} onPress={onEdit} /> : null}
+          {person.trust !== "verified" && can("update") ? (
             <ActionButton label="Verify" theme={theme} onPress={onVerify} />
           ) : null}
-          <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} />
+          {can("delete") ? <ActionButton label="Remove" theme={theme} variant="danger" onPress={onDelete} /> : null}
         </View>
       )}
     </View>
@@ -382,17 +381,8 @@ function PersonForm({
 
     setSaving(true);
     try {
-      // Enforce "at most one caregiver": when enabling it here, clear it on any
-      // OTHER person that currently carries the flag.
-      if (isCaregiver) {
-        const others = people.filter(
-          (p) => p.is_caregiver === 1 && p.id !== editing?.id,
-        );
-        for (const other of others) {
-          await updatePerson(other.id, { is_caregiver: 0 });
-        }
-      }
-
+      // "At most one caregiver" is enforced by the hub: setting is_caregiver on
+      // this person clears it on everyone else.
       // Create first so the photo can be uploaded to the returned id; edit
       // updates in place against the existing id.
       let personId: string;
@@ -423,7 +413,7 @@ function PersonForm({
 
   // Preview: a freshly picked local photo wins; otherwise fall back to the
   // existing stored photo resolved via the hub URL.
-  const previewUri = photo?.uri ?? storedPhotoUri(editing?.photo_path, hubUrl);
+  const previewUri = photo?.uri ?? photoUri(hubUrl, editing?.photo_url, editing?.photo_path);
   const avatarSize = theme.touchTargets.large;
 
   return (
@@ -663,18 +653,6 @@ function Badge({
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
-}
-
-/** Resolve a stored photo_path against the hub base URL, mirroring PersonCard. */
-function storedPhotoUri(
-  photoPath: string | null | undefined,
-  hubUrl: string | null | undefined,
-): string | null {
-  if (!photoPath) return null;
-  if (/^https?:\/\//i.test(photoPath)) return photoPath;
-  if (!hubUrl) return null;
-  const base = hubUrl.replace(/\/+$/, "");
-  return `${base}/${photoPath.replace(/^\/+/, "")}`;
 }
 
 const styles = StyleSheet.create({

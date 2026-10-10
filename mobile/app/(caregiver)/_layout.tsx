@@ -1,14 +1,14 @@
-// EchoVault mobile — caregiver route group layout = PIN gate + nav shell.
+// EchoVault mobile — caregiver route group layout = PIN gate + nav shell (CGV-1, AUTH-2).
 //
 // Caregiver mode routes here first (app/index.tsx already set role=caregiver).
-// This layout is the GATE: on mount it reads getCaregiverId(); if there is no
-// caregiver id yet it renders a PIN entry screen, and only once a PIN login
-// succeeds does it reveal the Stack over the 7 caregiver screens.
-//
-// AUTH IS A STUBBED BACKEND MODULE: POST /auth/pin returns 404 until the Auth
-// module (AUTH-2) lands. pinLogin() therefore throws an ApiError (kind:'http',
-// status 404) today — the PIN screen catches `instanceof ApiError` and renders
-// the message inline instead of crashing.
+// On mount it re-reads the saved caregiver from the hub (GET /auth/me): a
+// caregiver who was deactivated is signed out, and a changed access level is
+// picked up. Without a caregiver it shows the PIN screen (POST /auth/pin):
+//   401 wrong PIN, 429 too many tries (wait), 409 the PIN is shared by more than
+//   one caregiver, so the screen lists their names to choose from.
+// The signed-in caregiver's access level is shared with every screen through
+// useCaregiverGate(), so they hide what this caregiver may not do (src/auth/access.ts);
+// the hub enforces the same rules anyway.
 
 import { Stack, useRouter } from "expo-router";
 import React, {
@@ -30,25 +30,39 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { pinLogin } from "../../src/api/auth";
-import { ApiError, getCaregiverId, setCaregiverId } from "../../src/api/client";
+import {
+  endCaregiverSession,
+  pinErrorMessage,
+  refreshCaregiverSession,
+  sharedPinCaregivers,
+  startCaregiverSession,
+  type CaregiverIdentity,
+} from "../../src/api/auth";
+import { getCaregiverId } from "../../src/api/client";
+import { can, type CaregiverAction } from "../../src/auth/access";
 import BigButton from "../../src/components/BigButton";
 import { useTheme } from "../../src/theme-context";
+import type { AccessLevel } from "../../src/types";
 
 /**
- * Lets any caregiver screen (e.g. the dashboard) leave caregiver mode: it
- * clears the stored caregiver id, re-locks this gate and returns to the mode
- * picker so the PIN is required again on the next entry.
+ * What caregiver screens get from the gate: who is signed in, what they may do,
+ * and a way to leave caregiver mode (the PIN is needed again next time).
  */
 interface CaregiverGateValue {
+  caregiver: CaregiverIdentity | null;
+  accessLevel: AccessLevel | null;
+  can: (action: CaregiverAction) => boolean;
   leaveCaregiverMode: () => Promise<void>;
 }
 
 const CaregiverGateContext = createContext<CaregiverGateValue>({
+  caregiver: null,
+  accessLevel: null,
+  can: () => false,
   leaveCaregiverMode: async () => {},
 });
 
-/** Access the caregiver gate controls (currently: leave caregiver mode). */
+/** The signed-in caregiver, their permissions, and leaving caregiver mode. */
 export function useCaregiverGate(): CaregiverGateValue {
   return useContext(CaregiverGateContext);
 }
@@ -60,23 +74,39 @@ export default function CaregiverLayout() {
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("checking");
+  const [caregiver, setCaregiver] = useState<CaregiverIdentity | null>(null);
   const [pin, setPin] = useState("");
+  const [choices, setChoices] = useState<{ id: string; name: string }[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // On mount, unlock immediately if a caregiver id was already persisted.
+  // On mount: a saved caregiver is re-checked with the hub before unlocking.
   useEffect(() => {
     let cancelled = false;
-    getCaregiverId().then((id) => {
-      if (cancelled) return;
-      setPhase(id ? "unlocked" : "locked");
-    });
+    (async () => {
+      const id = await getCaregiverId();
+      if (!id) {
+        if (!cancelled) setPhase("locked");
+        return;
+      }
+      try {
+        const current = await refreshCaregiverSession(); // null: deactivated, signed out
+        if (cancelled) return;
+        setCaregiver(current);
+        setPhase(current ? "unlocked" : "locked");
+      } catch (err) {
+        // hub unreachable: ask for the PIN again rather than trusting a stale session
+        if (cancelled) return;
+        setError(pinErrorMessage(err));
+        setPhase("locked");
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  async function onSubmitPin() {
+  async function signIn(caregiverId?: string) {
     const entered = pin.trim();
     if (!entered) {
       setError("Enter your PIN to continue.");
@@ -85,33 +115,29 @@ export default function CaregiverLayout() {
     setError(null);
     setSubmitting(true);
     try {
-      const result = await pinLogin(entered);
-      // Persist the id so every later request carries X-Caregiver-Id. Role is
-      // already 'caregiver' (set in app/index.tsx) — do not re-set it here.
-      await setCaregiverId(result.id);
+      // saves the caregiver id, role and access level for every later request
+      setCaregiver(await startCaregiverSession(entered, caregiverId));
       setPin("");
+      setChoices(null);
       setPhase("unlocked");
     } catch (err) {
-      // 404 == auth module still a stub; any ApiError shows its message inline
-      // and keeps us on the PIN screen rather than crashing.
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+      const shared = sharedPinCaregivers(err);
+      if (shared) setChoices(shared);
+      setError(pinErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
   }
 
   const leaveCaregiverMode = useCallback(async () => {
-    await setCaregiverId(null);
+    await endCaregiverSession();
+    setCaregiver(null);
     setPhase("locked");
     setPin("");
+    setChoices(null);
     setError(null);
     router.replace("/");
   }, [router]);
-
   if (phase === "checking") {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: theme.colors.bg }]}>
@@ -140,7 +166,7 @@ export default function CaregiverLayout() {
             </Text>
             <TextInput
               value={pin}
-              onChangeText={setPin}
+              onChangeText={(value) => { setPin(value); setChoices(null); }}
               placeholder="PIN"
               placeholderTextColor={theme.colors.muted}
               secureTextEntry
@@ -148,7 +174,7 @@ export default function CaregiverLayout() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!submitting}
-              onSubmitEditing={onSubmitPin}
+              onSubmitEditing={() => signIn()}
               style={{
                 borderWidth: 1,
                 borderColor: error ? theme.colors.danger : theme.colors.border,
@@ -163,12 +189,27 @@ export default function CaregiverLayout() {
             {error ? (
               <Text style={{ color: theme.colors.danger, fontSize: theme.fontSizes.body }}>{error}</Text>
             ) : null}
-            <BigButton
-              label={submitting ? "Checking…" : "Unlock"}
-              onPress={onSubmitPin}
-              loading={submitting}
-              theme={theme}
-            />
+            {choices ? (
+              <View style={{ gap: theme.spacing.sm }}>
+                {choices.map((c) => (
+                  <BigButton
+                    key={c.id}
+                    label={`I am ${c.name}`}
+                    variant="secondary"
+                    onPress={() => signIn(c.id)}
+                    loading={submitting}
+                    theme={theme}
+                  />
+                ))}
+              </View>
+            ) : (
+              <BigButton
+                label={submitting ? "Checking…" : "Unlock"}
+                onPress={() => signIn()}
+                loading={submitting}
+                theme={theme}
+              />
+            )}
             <BigButton
               label="Back"
               variant="danger"
@@ -184,7 +225,14 @@ export default function CaregiverLayout() {
   // Unlocked: render the Stack over the 7 caregiver screens by their existing
   // route/file names. Screens navigate between each other with the router.
   return (
-    <CaregiverGateContext.Provider value={{ leaveCaregiverMode }}>
+    <CaregiverGateContext.Provider
+      value={{
+        caregiver,
+        accessLevel: caregiver?.access_level ?? null,
+        can: (action) => can(caregiver?.access_level, action),
+        leaveCaregiverMode,
+      }}
+    >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="memories/index" />

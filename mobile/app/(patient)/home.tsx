@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { listVerifiedPeople } from "../../src/api/people";
 import { todaySchedule } from "../../src/api/schedule";
 import BigButton from "../../src/components/BigButton";
-import { Notice, useDemoFeatures } from "../../src/components/Notice";
+import { Notice } from "../../src/components/Notice";
 import PersonCard from "../../src/components/PersonCard";
 import { ReminderBanner } from "../../src/components/ReminderBanner";
 import { offline } from "../../src/offline";
@@ -22,11 +22,6 @@ import { comingUp, isForDay, timeState } from "../../src/patient/logic";
 import { useTheme } from "../../src/theme-context";
 import { clockLabel, dateLabel, greeting, nowLabel } from "../../src/time";
 import type { Person, ScheduleOccurrence } from "../../src/types";
-
-const FEATURE_NAMES: Record<string, string> = {
-  patient: "profile", settings: "settings", schedule: "schedule", people: "family", memories: "memories",
-  assistant: "questions", medications: "medicines", games: "games", trivia: "questions of the day",
-};
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -41,7 +36,6 @@ export default function Home() {
   const theme = useTheme();
   const { name, managedMode, hubUrl, reload } = usePatient();
   const now = useClock();
-  const demo = useDemoFeatures();
   const [items, setItems] = useState<ScheduleOccurrence[] | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [unreachable, setUnreachable] = useState(false);
@@ -155,12 +149,6 @@ export default function Home() {
           </>
         ) : null}
 
-        {demo.length ? (
-          <Notice
-            tone="demo"
-            text={`Demo data in: ${demo.map((f) => FEATURE_NAMES[f] ?? f).join(", ")}. These parts are not connected to the hub yet.`}
-          />
-        ) : null}
         <Text
           onPress={() => router.push({ pathname: "/", params: { setup: "1" } })}
           accessibilityRole="link"

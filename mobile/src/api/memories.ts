@@ -1,6 +1,6 @@
-// EchoVault mobile — memories API.
-// Wired to the ARCHITECTURE-named routes (CRUD, verify, filtered list) pending
-// the backend Memories module. All calls go through the shared client.
+// EchoVault mobile — memories API (backend/app/features/memories/router.py):
+// CRUD, verify, resolve and the filtered list. All calls go through the shared client.
+// In patient mode the hub only ever returns verified, currently valid memories.
 
 import { del, get, post, put } from "./client";
 import type { Category, Memory, Trust } from "../types";
@@ -11,7 +11,6 @@ export type MemoryInput = Partial<Omit<Memory, "id" | "created_at" | "updated_at
 export interface MemoryFilter {
   trust?: Trust;
   category?: Category;
-  /** ASSUMED: GET /memories accepts person_id as a filter. */
   person_id?: string;
 }
 
@@ -59,4 +58,13 @@ export function deleteMemory(id: string): Promise<void> {
 /** Mark a memory verified. POST /memories/{id}/verify. */
 export function verifyMemory(id: string): Promise<Memory> {
   return post<Memory>(`/memories/${id}/verify`);
+}
+
+/**
+ * Resolve a conflict (MEM-4): keep this memory as the verified one and send the
+ * memory it conflicts with to "archived" (default) or "outdated", in one step.
+ * POST /memories/{id}/resolve; 400 when the memory is not in a conflict.
+ */
+export function resolveMemory(id: string, otherOutcome: "archived" | "outdated" = "archived"): Promise<Memory> {
+  return post<Memory>(`/memories/${id}/resolve`, { other_outcome: otherOutcome });
 }

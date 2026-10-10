@@ -9,9 +9,7 @@
 // optional person picked from listPeople(). All network I/O goes through
 // src/api/* — never a raw fetch.
 //
-// BACKEND IS A STUB: the memories (and people) routes 404 until MEM-2/MEM-4
-// (and the People module) land. This form is wired to the documented contract
-// and renders the ApiError message in its error state instead of crashing.
+// Hub errors (validation, 403 for a viewer) are shown as the hub's message.
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -369,8 +367,8 @@ export default function MemoryForm() {
   );
 }
 
-// People load is tolerant: the People module is also a stub, so if listPeople()
-// fails the form still works for everything except linking a person.
+// People load is tolerant: if listPeople() fails the form still works for
+// everything except linking a person.
 async function loadPeople(): Promise<Person[]> {
   try {
     return await listPeople();

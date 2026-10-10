@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from "react-native";
 
 import { todaySchedule } from "../../src/api/schedule";
-import { DemoTag, Notice } from "../../src/components/Notice";
+import { Notice } from "../../src/components/Notice";
 import { hubMessage, withCache, type Cached } from "../../src/patient/cached";
 import { isForDay, timeState, type TimeState } from "../../src/patient/logic";
 import { useTheme } from "../../src/theme-context";
@@ -57,7 +57,6 @@ export default function Schedule() {
       contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 200 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <DemoTag feature="schedule" />
       {result?.fromCache && !stale ? (
         <Notice
           tone="warning"

@@ -1,12 +1,11 @@
 // Checks the patient app against a REAL running hub: the routes the app would
 // send to it, and every field the screens read. Skipped unless HUB_URL is set:
 //   HUB_URL=http://localhost:8000 npm run test:patient
-// Routes the hub does not have yet are skipped (the app uses demo data for them).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { chooseSource, parseOpenApi, type HubRoutes } from "../src/api/routes";
+import { parseOpenApi, type HubRoutes } from "../src/api/routes";
 import { dueDose } from "../src/patient/logic";
 import type { AssistantAnswer } from "../src/api/assistant";
 import type { Dose, Patient, ScheduleOccurrence } from "../src/types";
@@ -27,16 +26,27 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-test("every route the hub has is used; the rest are marked demo", { skip }, async () => {
+test("every route the patient and caregiver apps call exists on the hub", { skip }, async () => {
   const r = await hubRoutes();
   const calls: [string, string][] = [
+    // patient app
     ["GET", "/patient"], ["GET", "/settings"], ["GET", "/schedule/today"], ["GET", "/people"],
-    ["GET", "/medications/today"], ["POST", "/medications/logs/x"], ["POST", "/assistant/ask"],
+    ["GET", "/memories"], ["GET", "/medications/today"], ["POST", "/medications/logs/x"],
+    ["POST", "/schedule/x/ack"], ["POST", "/assistant/ask"], ["POST", "/assistant/voice"],
     ["GET", "/games/name_recall/round"], ["POST", "/games/result"], ["GET", "/trivia/next"], ["POST", "/trivia/result"],
+    // caregiver app
+    ["POST", "/auth/pin"], ["GET", "/auth/me"], ["GET", "/dashboard"],
+    ["GET", "/memories/x"], ["POST", "/memories"], ["PUT", "/memories/x"], ["DELETE", "/memories/x"],
+    ["POST", "/memories/x/verify"], ["POST", "/memories/x/resolve"],
+    ["POST", "/people"], ["PUT", "/people/x"], ["DELETE", "/people/x"], ["POST", "/people/x/photo"],
+    ["GET", "/schedule"], ["POST", "/schedule"], ["PUT", "/schedule/x"], ["DELETE", "/schedule/x"],
+    ["GET", "/medications"], ["POST", "/medications"], ["PUT", "/medications/x"], ["DELETE", "/medications/x"],
+    ["POST", "/medications/x/photo"], ["PUT", "/settings"],
+    ["GET", "/assistant/log"], ["POST", "/assistant/log/x/flag"],
+    ["GET", "/backup/export"], ["POST", "/backup/import"],
   ];
-  const used = Object.fromEntries(calls.map(([m, p]) => [`${m} ${p}`, chooseSource("auto", r, m, p)]));
-  console.log("   sources:", used);
-  for (const [m, p] of calls) assert.equal(used[`${m} ${p}`], r.has(m, p) ? "hub" : "demo");
+  const missing = calls.filter(([m, p]) => !r.has(m, p)).map(([m, p]) => `${m} ${p}`);
+  assert.deepEqual(missing, [], "routes the app calls but the hub does not have");
 });
 
 test("profile has what the home screen reads", { skip }, async () => {

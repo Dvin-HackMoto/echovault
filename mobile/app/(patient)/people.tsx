@@ -12,7 +12,7 @@ import { photoUri } from "../../src/api/client";
 import { verifiedMemoriesAbout } from "../../src/api/memories";
 import { listVerifiedPeople } from "../../src/api/people";
 import BigButton from "../../src/components/BigButton";
-import { DemoTag, Notice } from "../../src/components/Notice";
+import { Notice } from "../../src/components/Notice";
 import PersonCard, { displayName } from "../../src/components/PersonCard";
 import { hubMessage, withCache, type Cached } from "../../src/patient/cached";
 import { usePatient } from "../../src/patient/context";
@@ -44,7 +44,6 @@ export default function People() {
   return (
     <>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 200 }}>
-        <DemoTag feature="people" />
         {result?.fromCache ? <Notice tone="warning" text="Can't reach the helper right now. These may not be up to date." /> : null}
         {failure && !result ? <Notice tone="warning" text={failure} /> : null}
         {!result && !failure ? <ActivityIndicator size="large" style={{ marginTop: spacing.xl }} /> : null}

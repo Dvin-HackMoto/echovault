@@ -1,15 +1,11 @@
 // EchoVault mobile — caregiver memories list (CGV-2).
 //
 // Lists memories with trust + category filters, a shared TrustBadge per row, a
-// short content preview, one-tap Verify, Delete-with-confirm, and a guarded
-// conflict-resolve affordance for `conflicting` rows. Add/Edit navigate to the
-// memories/[id] form. All network I/O goes through src/api/memories — never a
-// raw fetch.
-//
-// BACKEND IS A STUB: the memories module routes 404 until MEM-2/MEM-4 land, so
-// this screen is wired to the documented contract and renders the ApiError
-// message (incl. 404) in its error state instead of crashing. The conflict
-// resolve path is additionally guarded against a 404 (MEM-4) — see onResolve.
+// short content preview, one-tap Verify, Delete-with-confirm, and conflict
+// resolution for `conflicting` rows (POST /memories/{id}/resolve). Add/Edit
+// navigate to the memories/[id] form. All network I/O goes through
+// src/api/memories — never a raw fetch. Buttons this caregiver's access level
+// does not allow are hidden (useCaregiverGate().can).
 
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -28,7 +24,7 @@ import { ApiError } from "../../../src/api/client";
 import {
   deleteMemory,
   listMemories,
-  updateMemory,
+  resolveMemory,
   verifyMemory,
   type MemoryFilter,
 } from "../../../src/api/memories";
@@ -55,7 +51,7 @@ const CATEGORY_OPTIONS: Category[] = [
 export default function CaregiverMemories() {
   const theme = useTheme();
   const router = useRouter();
-  const { leaveCaregiverMode } = useCaregiverGate();
+  const { leaveCaregiverMode, can } = useCaregiverGate();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -142,9 +138,9 @@ export default function CaregiverMemories() {
     );
   }
 
-  // Conflict resolution: keep THIS memory verified and archive the one it
-  // conflicts with (conflicts_with). GUARDED — if the stubbed backend (MEM-4)
-  // 404s, show a friendly "available later" note instead of crashing.
+  // Conflict resolution (MEM-4): keep THIS memory as the verified one; the hub
+  // archives the memory it conflicts with in the same step
+  // (POST /memories/{id}/resolve). Without a partner it is a plain verify.
   function onResolve(memory: Memory) {
     const otherId = memory.conflicts_with ?? null;
     Alert.alert(
@@ -159,23 +155,17 @@ export default function CaregiverMemories() {
           onPress: async () => {
             setBusyId(memory.id);
             try {
-              await verifyMemory(memory.id);
               if (otherId) {
-                await updateMemory(otherId, { validity: "archived" });
+                await resolveMemory(memory.id, "archived");
+              } else {
+                await verifyMemory(memory.id);
               }
               await refresh();
             } catch (err) {
-              if (err instanceof ApiError && err.status === 404) {
-                Alert.alert(
-                  "Not available yet",
-                  "Conflict resolution will be available once the memories module lands (MEM-4).",
-                );
-              } else {
-                Alert.alert(
-                  "Couldn't resolve",
-                  err instanceof ApiError ? err.message : "Something went wrong.",
-                );
-              }
+              Alert.alert(
+                "Couldn't resolve",
+                err instanceof ApiError ? err.message : "Something went wrong.",
+              );
             } finally {
               setBusyId(null);
             }
@@ -194,11 +184,13 @@ export default function CaregiverMemories() {
           </Text>
         </View>
 
-        <BigButton
-          label="Add memory"
-          onPress={() => router.push("/(caregiver)/memories/new")}
-          theme={theme}
-        />
+        {can("create") ? (
+          <BigButton
+            label="Add memory"
+            onPress={() => router.push("/(caregiver)/memories/new")}
+            theme={theme}
+          />
+        ) : null}
 
         {/* Filters — each re-calls listMemories with the chosen trust/category. */}
         <View style={{ gap: theme.spacing.sm }}>
@@ -299,6 +291,7 @@ function MemoryRow({
   onDelete: () => void;
   onResolve: () => void;
 }) {
+  const { can } = useCaregiverGate();
   const preview = memory.title?.trim() || memory.content;
   return (
     <View
@@ -329,13 +322,13 @@ function MemoryRow({
       ) : (
         <View style={{ gap: theme.spacing.sm }}>
           <View style={styles.actionRow}>
-            <ActionButton label="Edit" theme={theme} onPress={onEdit} />
-            {memory.trust !== "verified" ? (
+            {can("update") ? <ActionButton label="Edit" theme={theme} onPress={onEdit} /> : null}
+            {memory.trust !== "verified" && can("update") ? (
               <ActionButton label="Verify" theme={theme} onPress={onVerify} />
             ) : null}
-            <ActionButton label="Delete" theme={theme} variant="danger" onPress={onDelete} />
+            {can("delete") ? <ActionButton label="Delete" theme={theme} variant="danger" onPress={onDelete} /> : null}
           </View>
-          {memory.trust === "conflicting" ? (
+          {memory.trust === "conflicting" && can("update") ? (
             <ActionButton label="Resolve conflict" theme={theme} onPress={onResolve} />
           ) : null}
         </View>

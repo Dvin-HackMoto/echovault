@@ -23,8 +23,8 @@ export function listPeople(trust?: Trust): Promise<Person[]> {
 }
 
 /**
- * Patient mode: verified people only. The hub filters (ASSUMED: `trust` query
- * filter); the check here is a second guard so an unverified record is never shown.
+ * Patient mode: verified people only. The hub only ever returns verified people
+ * to the patient; the check here is a second guard.
  */
 export async function listVerifiedPeople(): Promise<Person[]> {
   const people = await get<Person[]>("/people?trust=verified");

@@ -1,6 +1,6 @@
 // EchoVault mobile — schedule API.
-// Wired to the ARCHITECTURE-named routes (CRUD, today/next, acks) pending the
-// backend Schedule module. All calls go through the shared client.
+// backend/app/features/schedule/router.py: CRUD, today/next and acks. All calls
+// go through the shared client.
 
 import { del, get, post, put } from "./client";
 import type { AckResponse, ScheduleAck, ScheduleItem, ScheduleOccurrence } from "../types";

@@ -38,7 +38,6 @@ export async function withCache<T>(key: string, fetcher: () => Promise<T>): Prom
 /** The message for a failed hub call, in words the patient understands. */
 export function hubMessage(error: unknown): string {
   if (isUnreachable(error)) return "Can't reach the helper right now.";
-  if (error instanceof ApiError && error.kind === "not_built") return "This part is not set up on the hub yet.";
   if (error instanceof ApiError && error.kind === "config") return "The hub is not set up on this phone yet.";
   return "Something went wrong. Please try again.";
 }

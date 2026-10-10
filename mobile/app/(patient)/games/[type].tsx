@@ -13,7 +13,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "rea
 import { photoUri } from "../../../src/api/client";
 import { getRound, postResult, type GameChoice, type GameRound } from "../../../src/api/games";
 import BigButton from "../../../src/components/BigButton";
-import { DemoTag, Notice } from "../../../src/components/Notice";
+import { Notice } from "../../../src/components/Notice";
 import { hubMessage } from "../../../src/patient/cached";
 import { usePatient } from "../../../src/patient/context";
 import { GAMES, isGameType, roundOutcome, unavailableMessage } from "../../../src/patient/games";
@@ -112,7 +112,6 @@ export default function PlayGame() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: game?.title ?? "Game" }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl }}>
-        <DemoTag feature="games" />
         {!round && !failure ? <ActivityIndicator size="large" style={{ marginTop: spacing.xl }} /> : null}
         {failure ? <Notice tone="warning" text={failure} /> : null}
 

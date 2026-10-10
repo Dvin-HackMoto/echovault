@@ -15,7 +15,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { nextTrivia, postTriviaResult, type TriviaOutcome } from "../api/trivia";
 import BigButton from "../components/BigButton";
-import { DemoTag } from "../components/Notice";
 import { useTheme } from "../theme-context";
 import type { TriviaPrompt } from "../types";
 import { usePatient } from "./context";
@@ -115,7 +114,6 @@ export default function TriviaCard() {
           <Text style={{ fontSize: theme.fontSizes.button, color: theme.colors.muted }}>✕</Text>
         </Pressable>
       </View>
-      <DemoTag feature="trivia" />
       <Text style={{ fontSize: theme.fontSizes.button, color: theme.colors.fg, fontWeight: "600" }}>{prompt.question}</Text>
       {reply ? (
         <Text style={{ fontSize: theme.fontSizes.button, color: theme.colors.success, fontWeight: "700" }}>{reply}</Text>

@@ -5,7 +5,6 @@ import { router } from "expo-router";
 import { ScrollView, Text } from "react-native";
 
 import BigButton from "../../../src/components/BigButton";
-import { DemoTag } from "../../../src/components/Notice";
 import { GAMES } from "../../../src/patient/games";
 import { useTheme } from "../../../src/theme-context";
 
@@ -13,7 +12,6 @@ export default function Games() {
   const theme = useTheme();
   return (
     <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md, paddingBottom: 200 }}>
-      <DemoTag feature="games" />
       <Text style={{ fontSize: theme.fontSizes.button, color: theme.colors.fg }}>
         Pick a game. It's just for fun, and you can stop any time.
       </Text>

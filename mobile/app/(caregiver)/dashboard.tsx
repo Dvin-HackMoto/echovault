@@ -5,8 +5,8 @@
 // caregiver's attention: unverified memories, conflicting pairs, outdated
 // memories, medications needing confirmation, and flagged assistant answers.
 // Each attention row deep-links into the screen that fixes it (memory rows ->
-// /(caregiver)/memories, medication rows -> /(caregiver)/medications); those
-// routes already resolve (as placeholders until their own FEATs land).
+// /(caregiver)/memories, medication rows -> /(caregiver)/medications). A flagged
+// answer opens a review: fix a memory, or clear the flag once it is fixed.
 //
 // HARD PRODUCT CONSTRAINT (docs/PRODUCT.md): the activity summary reports
 // ENGAGEMENT only — played vs skipped counts and the topic. NEVER a score,
@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { flagAnswer } from "../../src/api/assistant";
 import { ApiError } from "../../src/api/client";
 import { getDashboard, type DashboardResponse } from "../../src/api/dashboard";
 import BigButton from "../../src/components/BigButton";
@@ -38,7 +40,7 @@ type Phase = "loading" | "error" | "ready";
 export default function CaregiverDashboard() {
   const theme = useTheme();
   const router = useRouter();
-  const { leaveCaregiverMode } = useCaregiverGate();
+  const { leaveCaregiverMode, can, caregiver } = useCaregiverGate();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -60,6 +62,27 @@ export default function CaregiverDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A flagged answer came from saved records (assistant_log.memory_ids): the fix is
+  // to correct the memory it used, then clear the flag
+  // (POST /assistant/log/{id}/flag {flagged: false}).
+  function reviewAnswer(log: AssistantLog) {
+    const buttons: { text: string; style?: "cancel"; onPress?: () => void }[] = [
+      { text: "Close", style: "cancel" },
+      { text: "Fix a memory", onPress: () => router.push("/(caregiver)/memories") },
+    ];
+    if (can("update")) {
+      buttons.push({
+        text: "Clear the flag",
+        onPress: () => {
+          flagAnswer(log.id, false)
+            .then(() => load())
+            .catch((err) => Alert.alert("Couldn't clear the flag", err instanceof ApiError ? err.message : "Something went wrong."));
+        },
+      });
+    }
+    Alert.alert("Flagged answer", `Question: ${log.question}\n\nAnswer: ${log.answer}`, buttons);
+  }
 
   if (phase === "loading") {
     return (
@@ -99,6 +122,12 @@ export default function CaregiverDashboard() {
         <Text style={{ color: theme.colors.fg, fontSize: theme.fontSizes.heading, fontWeight: "800" }}>
           Dashboard
         </Text>
+        {caregiver ? (
+          <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
+            Signed in as {caregiver.name}
+            {caregiver.access_level === "viewer" ? " (view only)" : caregiver.access_level === "editor" ? " (editor)" : " (admin)"}
+          </Text>
+        ) : null}
 
         {nothingToReview ? (
           <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
@@ -157,7 +186,7 @@ export default function CaregiverDashboard() {
           ))}
         </Section>
 
-        {/* Flagged assistant answers — reviewed in memories (the source data). */}
+        {/* Flagged assistant answers: fix the source memory, then clear the flag. */}
         <Section
           title="Flagged answers"
           count={d.flagged_answers.length}
@@ -165,12 +194,7 @@ export default function CaregiverDashboard() {
           emptyNote="No answers were flagged for review."
         >
           {d.flagged_answers.map((log) => (
-            <AssistantRow
-              key={log.id}
-              log={log}
-              theme={theme}
-              onPress={() => router.push("/(caregiver)/memories")}
-            />
+            <AssistantRow key={log.id} log={log} theme={theme} onPress={() => reviewAnswer(log)} />
           ))}
         </Section>
 

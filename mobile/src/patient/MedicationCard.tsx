@@ -12,7 +12,7 @@ import { AppState, Image, Modal, ScrollView, StyleSheet, Text, View } from "reac
 import { photoUri } from "../api/client";
 import { logMedicationStatus, todayMedicationLogs } from "../api/medications";
 import BigButton from "../components/BigButton";
-import { DemoTag, Notice } from "../components/Notice";
+import { Notice } from "../components/Notice";
 import { useTheme } from "../theme-context";
 import { clockLabel } from "../time";
 import type { Dose } from "../types";
@@ -88,7 +88,6 @@ export default function MedicationCard() {
         <Text style={text(theme.fontSizes.title, { fontWeight: "800" })} accessibilityRole="header">
           💊 Time for your medicine
         </Text>
-        <DemoTag feature="medications" />
         <View
           style={{
             backgroundColor: theme.colors.card,

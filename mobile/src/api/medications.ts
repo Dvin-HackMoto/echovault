@@ -1,8 +1,8 @@
-// EchoVault mobile — medications API.
-// Wired to the ARCHITECTURE-named routes (CRUD + log status) pending the
-// backend Medications module. All calls go through the shared client.
+// EchoVault mobile — medications API (backend/app/features/medications/router.py):
+// CRUD with dosing times, photo upload, today's doses and dose confirmation.
+// All calls go through the shared client.
 
-import { del, get, post, put } from "./client";
+import { del, get, post, put, uploadFile, type UploadFile } from "./client";
 import type {
   ConfirmedBy,
   Dose,
@@ -12,15 +12,28 @@ import type {
   MedicationTime,
 } from "../types";
 
-export type MedicationInput = Partial<Omit<Medication, "id" | "updated_at">>;
+/**
+ * What a caregiver writes on create/update. `times` replaces the medicine's
+ * dosing times (the hub has no separate times endpoint). The photo is not part
+ * of it: it only changes through uploadMedicationPhoto.
+ */
+export type MedicationInput = Partial<Omit<Medication, "id" | "updated_at" | "photo_path">> & {
+  times?: { time_of_day: string; days?: string }[];
+};
 
-/** A medication with its dosing times, as the detail view needs. */
+/** A medication with its dosing times and photo URL, as GET /medications returns it. */
 export interface MedicationWithTimes extends Medication {
   times: MedicationTime[];
+  photo_url?: string | null;
 }
 
-export function listMedications(): Promise<Medication[]> {
-  return get<Medication[]>("/medications");
+export function listMedications(): Promise<MedicationWithTimes[]> {
+  return get<MedicationWithTimes[]>("/medications");
+}
+
+/** Upload the pill or box photo (multipart field `photo`; JPEG, PNG or WebP). POST /medications/{id}/photo. */
+export function uploadMedicationPhoto(id: string, file: UploadFile): Promise<MedicationWithTimes> {
+  return uploadFile<MedicationWithTimes>(`/medications/${encodeURIComponent(id)}/photo`, "photo", file);
 }
 
 export function getMedication(id: string): Promise<MedicationWithTimes> {
@@ -49,7 +62,8 @@ export function todayMedicationLogs(): Promise<Dose[]> {
 
 /**
  * Set a dose's status. POST /medications/logs/{id}.
- * `confirmed_by` separates "patient tapped it" from "caregiver confirmed it".
+ * The hub records who answered from the request's role headers (patient or
+ * caregiver); `confirmed_by` is sent for readability and ignored by the hub.
  */
 export function logMedicationStatus(
   logId: string,

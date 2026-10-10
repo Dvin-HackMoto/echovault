@@ -31,9 +31,6 @@ export const colors = {
   successBg: "#E6F4EA",
   warning: "#7A4A00",
   warningBg: "#FFF4D6",
-  /** "Demo data" labels: data from the in-app demo hub, not the real one. */
-  demo: "#6B3FA0",
-  demoBg: "#F1EAFB",
   /** Schedule items that already happened. */
   past: "#5B6470",
 } as const;

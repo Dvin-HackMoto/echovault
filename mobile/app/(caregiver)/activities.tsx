@@ -1,13 +1,13 @@
-// EchoVault mobile — caregiver activities (CGV-7).
+﻿// EchoVault mobile — caregiver activities (CGV-7).
 //
 // Two halves:
 //   1. Settings (REAL backend, GET/PUT /settings via src/api/settings): edit the
 //      game topics, difficulty, trivia frequency and quiet hours that drive the
 //      patient's games/trivia. Saved with updateSettings(partial); local state is
 //      replaced by the full SettingsValues the hub returns.
-//   2. Activity history (PLACEHOLDER): the client exposes NO games/activity-history
-//      endpoint — the Games module (GAM-*) owns that. We render a clearly labeled
-//      placeholder instead of inventing a client call.
+//   2. Activity history: the engagement summary from GET /dashboard
+//      (activity_summary: played and skipped counts per activity and topic,
+//      from activity_log, written by POST /games/result and /trivia/result).
 //
 // HARD PRODUCT CONSTRAINT (docs/PRODUCT.md): activity is reported as ENGAGEMENT
 // (played vs skipped, topics played) — NEVER a score, rating, percentage,
@@ -26,11 +26,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "../../src/api/client";
+import { getDashboard, type ActivitySummaryRow } from "../../src/api/dashboard";
 import { getSettings, updateSettings } from "../../src/api/settings";
 import BigButton from "../../src/components/BigButton";
 import { useTheme } from "../../src/theme-context";
 import type { Theme } from "../../src/theme";
-import type { Difficulty, GameTopic, SettingsValues } from "../../src/types";
+import type { ActivityKind, Difficulty, GameTopic, SettingsValues } from "../../src/types";
+import { useCaregiverGate } from "./_layout";
 
 type Phase = "loading" | "error" | "ready";
 
@@ -45,8 +47,21 @@ const GAME_TOPICS: { value: GameTopic; label: string }[] = [
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
+/** Friendly names for activity_log.activity. */
+const ACTIVITY_LABELS: Record<ActivityKind, string> = {
+  family_matching: "Family matching",
+  name_recall: "Who is this?",
+  event_recall: "Special days",
+  routine_recall: "My day",
+  picture_matching: "Picture matching",
+  memory_quiz: "About me",
+  trivia_prompt: "Questions of the day",
+};
+
 export default function CaregiverActivities() {
   const theme = useTheme();
+  const { can } = useCaregiverGate();
+  const [history, setHistory] = useState<ActivitySummaryRow[] | null>([]);
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +89,10 @@ export default function CaregiverActivities() {
   const load = useCallback(async () => {
     setPhase("loading");
     setError(null);
+    // the engagement summary is extra: if it fails, the settings still load
+    getDashboard()
+      .then((d) => setHistory(d.activity_summary))
+      .catch(() => setHistory(null));
     try {
       const s = await getSettings();
       applySettings(s);
@@ -275,17 +294,23 @@ export default function CaregiverActivities() {
           </Text>
         ) : null}
 
-        <BigButton
-          label={saving ? "Saving…" : "Save settings"}
-          onPress={() => void onSave()}
-          loading={saving}
-          theme={theme}
-        />
+        {can("update") ? (
+          <BigButton
+            label={saving ? "Saving…" : "Save settings"}
+            onPress={() => void onSave()}
+            loading={saving}
+            theme={theme}
+          />
+        ) : (
+          <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
+            You have view-only access, so these settings can't be changed here.
+          </Text>
+        )}
 
-        {/* ─────────────────────── Activity history (STUB) ─────────────────── */}
+        {/* ───────────── Activity history (GET /dashboard activity_summary) ───────────── */}
         <View
           style={[
-            styles.placeholderCard,
+            styles.historyCard,
             {
               backgroundColor: theme.colors.card,
               borderColor: theme.colors.border,
@@ -298,15 +323,31 @@ export default function CaregiverActivities() {
           <Text style={{ color: theme.colors.fg, fontSize: theme.fontSizes.title, fontWeight: "700" }}>
             Activity history
           </Text>
-          {/* STUB: the client exposes no games/activity-history endpoint — the
-              Games module (GAM-*) owns it. Do NOT invent a client call here.
-              When wired, render ActivityKind/ActivityOutcome labels and show
-              engagement (played/skipped, topics) only — never a score. */}
           <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
-            Activity history will populate once the Games module lands (GAM-*).
-            It will show engagement — which activities were played or skipped and
-            on which topics — never a score or assessment.
+            What was played or skipped, by activity and topic. This shows engagement
+            and preferences only. It is not a score or an assessment.
           </Text>
+          {history === null ? (
+            <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
+              Activity history is not available right now.
+            </Text>
+          ) : history.length === 0 ? (
+            <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
+              No games or questions have been played yet.
+            </Text>
+          ) : (
+            history.map((row) => (
+              <View key={`${row.activity}|${row.topic ?? ""}`} accessible style={{ gap: 2 }}>
+                <Text style={{ color: theme.colors.fg, fontSize: theme.fontSizes.body, fontWeight: "600" }}>
+                  {ACTIVITY_LABELS[row.activity] ?? row.activity}
+                  {row.topic ? ` · ${GAME_TOPICS.find((t) => t.value === row.topic)?.label ?? row.topic}` : ""}
+                </Text>
+                <Text style={{ color: theme.colors.muted, fontSize: theme.fontSizes.body }}>
+                  Played {row.played_count} · Skipped {row.skipped_count}
+                </Text>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -422,5 +463,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   toggle: { borderWidth: 1 },
-  placeholderCard: { borderWidth: 1 },
+  historyCard: { borderWidth: 1 },
 });
