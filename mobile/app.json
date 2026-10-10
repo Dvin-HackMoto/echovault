@@ -40,7 +40,15 @@
         }
       ],
       "expo-asset",
-      "expo-sharing"
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "EchoVault uses your photos so family members and medicines can be recognised.",
+          "cameraPermission": "EchoVault uses the camera to take photos of family members and medicines."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

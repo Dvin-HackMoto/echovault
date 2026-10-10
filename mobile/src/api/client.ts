@@ -81,6 +81,29 @@ export async function setCaregiverId(id: string | null): Promise<void> {
   }
 }
 
+// ───────────────────────────── hub reachability ────────────────────────────
+
+// Whether the last request to the real hub got an answer (null: none sent yet).
+let reachable: boolean | null = null;
+const reachListeners = new Set<() => void>();
+
+function setReachable(value: boolean) {
+  if (reachable === value) return;
+  reachable = value;
+  reachListeners.forEach((listener) => listener());
+}
+
+/** For useSyncExternalStore: did the hub answer the last request (null before any). */
+export const reachStore = {
+  subscribe(listener: () => void) {
+    reachListeners.add(listener);
+    return () => {
+      reachListeners.delete(listener);
+    };
+  },
+  getSnapshot: (): boolean | null => reachable,
+};
+
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -157,12 +180,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   try {
     response = await fetchWithTimeout(url, { method, headers: finalHeaders, body: payload }, timeoutMs);
   } catch (err) {
+    setReachable(false);
     // AbortController fires an AbortError; everything else is a network fault.
     if (err instanceof Error && err.name === "AbortError") {
       throw new ApiError("timeout", "The hub took too long to respond.");
     }
     throw new ApiError("network", "Can't reach the hub right now.");
   }
+  setReachable(true);
 
   if (!response.ok) {
     const { message, detail } = await safeErrorDetail(response);

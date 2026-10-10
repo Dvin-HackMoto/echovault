@@ -100,10 +100,13 @@ echovault/
 └── mobile/                          # React Native (Expo)
     ├── app/
     │   ├── _layout.tsx
-    │   ├── index.tsx                # mode picker; hub IP setup on first run
-    │   ├── (patient)/               # home (orientation), ask, schedule, people, games/
-    │   └── (caregiver)/             # dashboard, memories/, people, schedule, medications,
-    │                                #   activities, backup
+    │   ├── index.tsx                # splash, onboarding, hub IP setup, "who uses this phone"
+    │   ├── (patient)/               # tabs: home, memories/, ask (Ask Kali), people/, schedule;
+    │   │                            #   plus medications, games/, trivia, orientation, settings
+    │   └── care/                    # caregiver app at /care (a real path, so its URLs never clash
+    │                                #   with the patient's): PIN, overview, memories/, schedule
+    │                                #   (routines + medication), people, more, profile,
+    │                                #   activities, backup, hub
     ├── src/
     │   ├── api/client.ts            # fetch wrapper with hub base URL + role header
     │   ├── api/*.ts                 # one file per feature: people.ts, memories.ts, assistant.ts…
@@ -118,8 +121,13 @@ echovault/
     │   ├── useCached.ts             # hook for screens that read through the cache
     │   ├── testing/                 # recorded hub responses, fake hub and phone for tests
     │   ├── types.ts                 # plain row shapes, mirrors the DB
-    │   ├── components/              # BigButton, PersonCard, MicButton, ReminderBanner, StaleNotice
-    │   └── theme.ts                 # large text, high contrast
+    │   ├── ui/                      # Kali design system (from frontend/): tokens, kit, labels,
+    │   │                            #   prefs (language, text size), toast, useHub (load + cache)
+    │   ├── caregiver/               # PIN screen, session (access level), forms, panels
+    │   ├── patient/                 # patient context, medication + trivia cards, decisions
+    │   ├── components/              # ReminderBanner, StaleNotice
+    │   └── theme.ts                 # base tokens + font_scale (older components)
+    ├── assets/kali/                 # Kali the elephant (from ASSETS/)
     └── package.json
 ```
 
