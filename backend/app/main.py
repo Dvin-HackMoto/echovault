@@ -12,8 +12,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.ai import startup as ai_startup
-from app.database.connection import migrate
+from app.database.connection import connect, migrate
 from app.database.seed import seed
+from app.features.memories import service as memories_service
 from app.features.trivia.loader import load_preloaded as load_trivia
 from app.middleware.dependencies import enforce_access_level
 
@@ -58,6 +59,14 @@ def _startup_step(name: str, action: Callable[[], object]) -> None:
         raise
 
 
+def expire_memories() -> None:
+    conn = connect()
+    try:
+        memories_service.run_daily_expiry(conn)
+    finally:
+        conn.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # migrate and seed are looked up at call time, so tests can patch app.main.migrate/seed
@@ -67,6 +76,9 @@ async def lifespan(app: FastAPI):
     _startup_step("load preloaded trivia", load_trivia)
     if config.DEMO_MODE:
         _startup_step("seed demo data", seed)
+    # MEM-3: verified memories past valid_until become outdated (again on the first
+    # GET /memories of each new day)
+    _startup_step("expire outdated memories", expire_memories)
     # AI-1 / AI-4: load Whisper once and warm up Ollama so the first answer isn't slow.
     # Never raises: a missing model or a stopped Ollama only logs a warning, and the
     # assistant falls back to template answers (fallback.py) until it comes back.

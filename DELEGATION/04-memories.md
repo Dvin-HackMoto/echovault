@@ -13,11 +13,11 @@ Features:
 - Source rules for patient and AI entries
 
 Tasks:
-- [ ] MEM-1 Memory CRUD
-- [ ] MEM-2 Verify endpoint
-- [ ] MEM-3 Expire outdated memories
-- [ ] MEM-4 Conflict flagging and resolution
-- [ ] MEM-5 Source and safety rules
+- [x] MEM-1 Memory CRUD
+- [x] MEM-2 Verify endpoint
+- [x] MEM-3 Expire outdated memories
+- [x] MEM-4 Conflict flagging and resolution
+- [x] MEM-5 Source and safety rules
 
 Dependencies:
 - Hub Foundation
@@ -38,11 +38,11 @@ Goal: Fill in `features/memories/repository.py` and `router.py` with list (`?tru
 Priority: P0
 Dependencies: HUB-4, PPL-1
 Acceptance Criteria:
-- [ ] Create and update validate `content` and the category, importance, trust, validity and source enums
-- [ ] The list filters by `trust` and `category`
-- [ ] New memories default to `trust = unverified`
-- [ ] An edited memory is still found by FTS under its new text and no longer under its old text
-Status: TODO
+- [x] Create and update validate `content` and the category, importance, trust, validity and source enums
+- [x] The list filters by `trust` and `category`
+- [x] New memories default to `trust = unverified`
+- [x] An edited memory is still found by FTS under its new text and no longer under its old text
+Status: DONE
 
 ## MEM-2
 
@@ -53,10 +53,10 @@ Goal: Add `POST /memories/{id}/verify` that sets `trust = verified`, `verified_b
 Priority: P0
 Dependencies: MEM-1, AUTH-2
 Acceptance Criteria:
-- [ ] Only a caregiver can verify
-- [ ] `verified_by` and `verified_at` are set from the request
-- [ ] Editing the content of a verified memory returns it to `unverified`
-Status: TODO
+- [x] Only a caregiver can verify
+- [x] `verified_by` and `verified_at` are set from the request
+- [x] Editing the content of a verified memory returns it to `unverified`
+Status: DONE
 
 ## MEM-3
 
@@ -67,10 +67,10 @@ Goal: Add `expire_outdated()` to `features/memories/service.py`, run on startup 
 Priority: P1
 Dependencies: MEM-1
 Acceptance Criteria:
-- [ ] A verified memory whose `valid_until` has passed becomes `outdated`
-- [ ] Memories with no `valid_until` are untouched
-- [ ] The job runs at most once per day after startup
-Status: TODO
+- [x] A verified memory whose `valid_until` has passed becomes `outdated`
+- [x] Memories with no `valid_until` are untouched
+- [x] The job runs at most once per day after startup
+Status: DONE
 
 ## MEM-4
 
@@ -81,11 +81,11 @@ Goal: On save, flag a memory that has the same `person_id` and category as an ex
 Priority: P1
 Dependencies: MEM-2
 Acceptance Criteria:
-- [ ] Both rows become `conflicting` and point to each other through `conflicts_with`
-- [ ] A caregiver can keep one (becomes `verified`) and send the other to `archived` or `outdated`
-- [ ] Resolving clears `conflicts_with` on both rows
-- [ ] Unrelated memories about the same person are not flagged
-Status: TODO
+- [x] Both rows become `conflicting` and point to each other through `conflicts_with`
+- [x] A caregiver can keep one (becomes `verified`) and send the other to `archived` or `outdated`
+- [x] Resolving clears `conflicts_with` on both rows
+- [x] Unrelated memories about the same person are not flagged
+Status: DONE
 
 ## MEM-5
 
@@ -96,7 +96,7 @@ Goal: Enforce that patient and AI-suggested entries always start `unverified`, a
 Priority: P1
 Dependencies: MEM-1
 Acceptance Criteria:
-- [ ] A patient-mode create with `category = care_safety` is rejected
-- [ ] A create with `source = patient` or `ai_suggested` is stored as `unverified` whatever the payload says
-- [ ] AI-suggested memories are listable with `source = ai_suggested` and `trust = unverified`
-Status: TODO
+- [x] A patient-mode create with `category = care_safety` is rejected
+- [x] A create with `source = patient` or `ai_suggested` is stored as `unverified` whatever the payload says
+- [x] AI-suggested memories are listable with `source = ai_suggested` and `trust = unverified`
+Status: DONE

@@ -197,3 +197,104 @@ Checks after the upgrade and the Module 14 screens:
 `checkHealth` now reads `GET /openapi.json` first (every FastAPI app serves
 it, and the client uses the route list to decide real vs demo data) and falls
 back to `GET /health`.
+
+---
+
+# Module 16 "Caregiver App" — FEAT-005 Verification (CGV-7 Activities + CGV-8 Backup)
+
+This records the build-gate run for FEAT-005 (the final caregiver FEAT):
+`app/(caregiver)/activities.tsx` (settings REAL + history placeholder) and
+`app/(caregiver)/backup.tsx` (export/import REAL). It also carries the honest
+live-vs-stub split for the whole caregiver app.
+
+## Environment
+
+- Node: `v24.14.1`
+- npm: `11.11.0`
+- OS: macOS (darwin)
+- Worktree: `.worktrees/caregiver-app`, app under `mobile/`, branch
+  `feature/caregiver-app`
+
+## Native packages installed (CGV-8)
+
+Installed with `npx expo install expo-file-system expo-sharing
+expo-document-picker` (NOT plain `npm i`) so SDK-52-compatible versions are
+resolved. Versions landed in `package.json`:
+
+| Package | Resolved version |
+|---|---|
+| expo-file-system | ~18.0.12 |
+| expo-sharing | ~13.0.1 |
+| expo-document-picker | ~13.0.3 |
+
+- Export streams the zip to the app document directory with
+  `FileSystem.downloadAsync` then offers it via `Sharing.isAvailableAsync()` +
+  `Sharing.shareAsync(uri)`.
+- Import picks a `.zip` with `DocumentPicker.getDocumentAsync({ type:
+  "application/zip" })`, shows an explicit "data will be REPLACED" `Alert`, and
+  uploads via `importBackup(file, true)` (POST `/backup/import`).
+- Import is admin-gated: `auth.me()` is read for `access_level === "admin"`;
+  non-admin (or a 404 while auth is a stub, or a 403 from the server) disables
+  the control and shows "needs an admin caregiver".
+
+## Build gate
+
+### `npm install`
+
+Ran from `mobile/`. Exit code: **0** (success). Tail:
+
+```
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+Run `npm audit` for details.
+```
+
+The npm-audit vulnerabilities are in the Expo/React Native transitive toolchain
+(unchanged from the scaffold) and do not affect install success or the type
+check.
+
+### `npx tsc --noEmit`
+
+Ran from `mobile/` after install. Output: **(no output)**, exit code **0** —
+the whole project, including the two rebuilt screens, type-checks with **zero**
+errors (pinned typescript ~5.3.3).
+
+### `grep -rn 'fetch(' app`
+
+Returned **no output** (grep exit 1 = no match). No screen under `app/` performs
+a raw fetch; all network I/O goes through `src/api/*`. Activities uses
+`getSettings`/`updateSettings`; Backup uses `exportBackupUrl`/`importBackup` and
+`auth.me()`.
+
+## Live-vs-stub split (whole caregiver app)
+
+| Screen | Endpoint(s) | Status |
+|---|---|---|
+| Dashboard | GET `/dashboard` | **LIVE** |
+| Activities — settings | GET/PUT `/settings` | **LIVE** |
+| Activities — history | (none — Games module GAM-* owns it) | **STUB** — labeled placeholder, UI complete |
+| Backup — export | GET `/backup/export` | **LIVE** |
+| Backup — import | POST `/backup/import` | **LIVE** (admin-gated) |
+| PIN / auth | POST `/auth/pin`, GET `/auth/me` | **STUB (404)** until Auth module (AUTH-2); UI complete |
+| Memories | memories routes | **STUB (404)**; UI complete |
+| People | people routes | **STUB (404)**; UI complete |
+| Schedule | schedule routes | **STUB (404)**; UI complete |
+| Medications | medication routes | **STUB (404)**; UI complete |
+
+## No-clinical-score constraint (CGV-7)
+
+The Activities screen states plainly that activities support engagement and are
+NOT a clinical assessment or test, and it shows **no scores, grades, percentages
+or accuracy** anywhere. The history placeholder reiterates that, when wired, it
+will show engagement (played/skipped, topics) only.
+
+## NOT verified here (left for the human)
+
+- On-device Expo Go boot and interaction CANNOT be verified headlessly (needs a
+  physical Android device/emulator on the hub's LAN). No on-device success is
+  claimed.
+- Live calls against the STUB modules (auth, memories, people, schedule,
+  medications, and the Games activity-history endpoint) were NOT run — those
+  routes 404 until their backend modules land. Dashboard, Settings and Backup
+  are the only endpoints backed by a real module on `main`; their live request
+  behavior was not exercised headlessly either, only type-checked and gated.

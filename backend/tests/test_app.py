@@ -59,10 +59,11 @@ def test_startup_runs_ai_startup_after_migrate(monkeypatch):
     calls = []
     monkeypatch.setattr("app.main.migrate", lambda: calls.append("migrate"))
     monkeypatch.setattr("app.main.load_trivia", lambda: calls.append("trivia"))
+    monkeypatch.setattr("app.main.expire_memories", lambda: calls.append("expire"))
     monkeypatch.setattr("app.main.ai_startup", lambda: calls.append("ai"))
     with TestClient(create_app()) as client:
         assert client.get("/health").status_code == 200
-    assert calls == ["migrate", "trivia", "ai"]
+    assert calls == ["migrate", "trivia", "expire", "ai"]
 
 
 def test_ai_startup_failures_do_not_stop_the_hub(monkeypatch):

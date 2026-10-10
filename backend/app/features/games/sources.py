@@ -7,12 +7,12 @@
 #   routine_today                          features/schedule/service.py (SCH-2)
 #   settings                               features/settings/router.py (SET-1)
 #   personal_trivia                        features/trivia/service.py (TRV)
-# Memories (MEM) has no lookups yet, so usable_memories() reads that table itself,
-# read-only, and filters with app.ai.records.is_usable (the same rule the assistant
-# uses). When MEM-2 publishes a lookup, swap that one query; nothing else changes.
+#   usable_memories                        features/memories/service.py (MEM), re-checked
+#                                          with app.ai.records.is_usable like the assistant
 
 from app import constants
 from app.ai.records import is_usable
+from app.features.memories import service as memories_service
 from app.features.people import service as people_service
 from app.features.places import service as places_service
 from app.features.schedule import service as schedule_service
@@ -61,14 +61,11 @@ def verified_places(conn):
 
 
 def usable_memories(conn, category=None):
-    """Memories the patient may be shown right now: verified, not archived, not in a
-    conflict and inside valid_from / valid_until. Each row gets `photo_url`."""
-    sql = "SELECT * FROM memories WHERE trust = ?"
-    args = [constants.TRUST_VERIFIED]
-    if category:
-        sql += " AND category = ?"
-        args.append(category)
-    rows = [dict(r) for r in conn.execute(sql + " ORDER BY id", args).fetchall()]
+    """Memories the patient may be shown right now (MEM: verified, not archived, inside
+    valid_from / valid_until), re-checked with is_usable so a row still linked to a
+    conflict is never used. Sorted by id so a seeded rng gives a stable round.
+    Each row gets `photo_url`."""
+    rows = sorted(memories_service.usable_memories(conn, category=category), key=lambda r: r["id"])
     return [with_photo_url(r) for r in rows if is_usable(r)]
 
 
